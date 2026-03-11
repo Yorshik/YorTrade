@@ -1,70 +1,101 @@
-from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, auto
 from typing import Optional, List
+from pydantic import BaseModel, Field
 
 
-class MessageType(Enum):
-    TEXT = "text"
-    CALLBACK_QUERY = "callback_query"
-    NEW_CHAT_MEMBERS = "new_chat_members"  # Новый тип
-    UNKNOWN = "unknown"
+class MessageType(str, Enum):
+    TEXT = auto()
+    CALLBACK_QUERY = auto()
+    NEW_CHAT_MEMBERS = auto()
+    UNKNOWN = auto()
 
 
-@dataclass
-class UpdateObject:
-    raw_update: dict
-    message_type: MessageType
+class InlineKeyboardButton(BaseModel):
+    text: str
+    callback_data: Optional[str] = None
+    url: Optional[str] = None
+
+
+class InlineKeyboardMarkup(BaseModel):
+    inline_keyboard: List[List[InlineKeyboardButton]]
+
+
+class MessagePayload(BaseModel):
     chat_id: int
-    user_id: int
-    command: Optional[str] = None
+    text: Optional[str] = None
+    photo_path: Optional[str] = None
+    keyboard: Optional[InlineKeyboardMarkup] = None
+    message_id: Optional[int] = None
+    retry_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class User(BaseModel):
+    id: int
+    is_bot: bool
+    first_name: str
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+
+
+class Chat(BaseModel):
+    id: int
+    type: str
+    title: Optional[str] = None
+
+
+class Message(BaseModel):
+    message_id: int
+    from_user: Optional[User] = Field(None, alias="from")
+    chat: Chat
+    text: Optional[str] = None
+    new_chat_members: List[User] = []
+
+
+class CallbackQuery(BaseModel):
+    id: str
+    from_user: User = Field(..., alias="from")
+    message: Optional[Message] = None
     data: Optional[str] = None
-    # Новое поле для информации о новых участниках
-    new_chat_members: Optional[List[dict]] = None
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "UpdateObject":
-        raw_update = data
-        if "message" in data:
-            message = data["message"]
-            chat_id = message["chat"]["id"]
-            user_id = message["from"]["id"]
 
-            # Проверяем, был ли кто-то добавлен в чат
-            if "new_chat_members" in message:
-                return cls(
-                    raw_update=raw_update,
-                    message_type=MessageType.NEW_CHAT_MEMBERS,
-                    chat_id=chat_id,
-                    user_id=user_id,
-                    new_chat_members=message["new_chat_members"]
-                )
+class Update(BaseModel):
+    update_id: int
+    message: Optional[Message] = None
+    callback_query: Optional[CallbackQuery] = None
 
-            if "text" in message:
-                text = message["text"]
-                parts = text.split()
-                command = parts[0][1:] if text.startswith("/") else None
-                data_text = " ".join(parts[1:]) if command else text
-                return cls(
-                    raw_update=raw_update,
-                    message_type=MessageType.TEXT,
-                    chat_id=chat_id,
-                    user_id=user_id,
-                    command=command,
-                    data=data_text
-                )
-        elif "callback_query" in data:
-            callback = data["callback_query"]
-            return cls(
-                raw_update=raw_update,
-                message_type=MessageType.CALLBACK_QUERY,
-                chat_id=callback["message"]["chat"]["id"],
-                user_id=callback["from"]["id"],
-                command=None,
-                data=callback["data"]
-            )
-        return cls(
-            raw_update=raw_update,
-            message_type=MessageType.UNKNOWN,
-            chat_id=0,
-            user_id=0
-        )
+    @property
+    def type(self) -> MessageType:
+        if self.message and self.message.new_chat_members:
+            return MessageType.NEW_CHAT_MEMBERS
+        if self.message and self.message.text:
+            return MessageType.TEXT
+        if self.callback_query:
+            return MessageType.CALLBACK_QUERY
+        return MessageType.UNKNOWN
+
+    @property
+    def get_upd_from_user(self) -> Optional[User]:
+        if self.message:
+            return self.message.from_user
+        if self.callback_query:
+            return self.callback_query.from_user
+        return None
+
+    @property
+    def get_chat_id(self) -> Optional[int]:
+        if self.message:
+            return self.message.chat.id
+        if self.callback_query and self.callback_query.message:
+            return self.callback_query.message.chat.id
+        return None
+
+    @property
+    def get_text(self) -> Optional[str]:
+        if self.message:
+            return self.message.text
+        if self.callback_query:
+            return self.callback_query.data
+        return None

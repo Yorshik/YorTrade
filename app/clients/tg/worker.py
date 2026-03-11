@@ -4,20 +4,18 @@ import logging
 from typing import Optional
 
 from aio_pika.abc import AbstractIncomingMessage
-from aiohttp.web import Application
 
-from app.clients.tg.dto import MessagePayload
-from app.clients.tg.mailbox import UpdateObject
+from app.clients.tg.mailbox import Update
 from app.store.queue.accessor import RabbitMQAccessor
 
 logger = logging.getLogger(__name__)
 
 
 class Worker:
-    def __init__(self, app: Application):
+    def __init__(self, app):
         self.app = app
-        self.rabbitmq: RabbitMQAccessor = self.app["rabbitmq"]
-        self.handler_factory = self.app["handler_factory"]
+        self.rabbitmq: RabbitMQAccessor = app.rabbitmq
+        self.handler_factory = app.handler_factory
         self._task: Optional[asyncio.Task] = None
         self.updates_queue_name = "telegram_updates"
         self.sender_queue_name = "telegram_sender_queue"
@@ -26,14 +24,19 @@ class Worker:
         async with message.process():
             try:
                 update_json = json.loads(message.body.decode('utf-8'))
-                update_obj = UpdateObject.from_dict(update_json)
-                response_text = await self.handler_factory.handle_update(update_obj)
-                if response_text:
-                    payload = MessagePayload(
-                        chat_id=update_obj.chat_id,
-                        text=response_text
+                logger.info(f"Воркер получил сообщение: {update_json}")
+                update = Update.model_validate(update_json)
+                
+                response_payload = await self.handler_factory.handle_update(update)
+                
+                if response_payload:
+                    logger.info(f"Отправка ответа в очередь сендера: {response_payload.model_dump_json()}")
+                    await self.rabbitmq.publish(
+                        self.sender_queue_name, 
+                        response_payload.model_dump(mode="json")
                     )
-                    await self.rabbitmq.publish(self.sender_queue_name, payload.to_dict())
+                else:
+                    logger.info("Для этого обновления ответ не сгенерирован.")
             except Exception as e:
                 logger.error(f"Ошибка обработки сообщения из очереди: {e}", exc_info=True)
 

@@ -1,18 +1,17 @@
 import asyncio
 import logging
 from typing import Dict
-from aiohttp.web import Application
 
-from app.clients.tg.dto import MessagePayload
+from app.clients.tg.mailbox import MessagePayload
 from app.clients.tg.sender import Sender
 
 logger = logging.getLogger(__name__)
 
 
 class GameEngine:
-    def __init__(self, app: Application):
+    def __init__(self, app):
         self.app = app
-        self.sender: Sender = self.app["sender"]
+        self.sender: Sender = self.app.sender
         self._running_cycles: Dict[str, asyncio.Task] = {}
 
     async def _cycle_task(self, name: str, chat_id: int):
