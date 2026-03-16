@@ -1,9 +1,13 @@
-from typing import Optional
-
 from app.clients.common.handlers.base import BaseHandler
-from app.clients.common.mailbox import MessagePayload, MessageType, PayloadAction, Update
+from app.clients.common.mailbox import (
+    MessagePayload,
+    MessageType,
+    PayloadAction,
+    Update,
+)
 from app.utils.lobby import (
     adjust_setting,
+    build_lobby_text,
     get_setting_label,
     normalize_game_settings,
     render_lobby_keyboard,
@@ -33,11 +37,17 @@ class GameSettingsHandler(BaseHandler):
             if text.startswith(self.app.config.PREFIX):
                 return False
             source_platform = (update.source_platform or "TG").upper()
-            state = await self.app.fsm.get_state(update.from_user.id, platform=source_platform)
-            return bool(state and state[0] == self.app.fsm.FSM.GAME_SETTINGS and state[1].get("pending_setting"))
+            state = await self.app.fsm.get_state(
+                update.from_user.id, platform=source_platform
+            )
+            return bool(
+                state
+                and state[0] == self.app.fsm.FSM.GAME_SETTINGS
+                and state[1].get("pending_setting")
+            )
         return False
 
-    async def handle(self, update: Update) -> Optional[MessagePayload]:
+    async def handle(self, update: Update) -> MessagePayload | None:
         game = await self.app.market.game.get_by_chat_id(
             update.chat_id,
             platform=(update.source_platform or "TG"),
@@ -52,7 +62,9 @@ class GameSettingsHandler(BaseHandler):
             return None
 
         source_platform = (update.source_platform or "TG").upper()
-        actor_user = await self.app.users.user.get_by_external(source_platform, update.from_user.id)
+        actor_user = await self.app.users.user.get_by_external(
+            source_platform, update.from_user.id
+        )
         is_host = bool(actor_user and game.host_id == actor_user.id)
 
         if not is_host:
@@ -145,7 +157,9 @@ class GameSettingsHandler(BaseHandler):
                 action=PayloadAction.EDIT,
                 message_id=update.callback_query.message.message_id,
                 text=render_settings_text(settings),
-                keyboard=render_settings_keyboard(settings, use_client=(update.source_platform or "TG")),
+                keyboard=render_settings_keyboard(
+                    settings, use_client=(update.source_platform or "TG")
+                ),
             )
         else:
             await self.app.fsm.set_state(
@@ -158,11 +172,22 @@ class GameSettingsHandler(BaseHandler):
                 callback_query_id=update.callback_query.id,
                 text="Возвращаю в лобби.",
             )
+            chat_title = None
+            if (
+                update.callback_query
+                and update.callback_query.message
+                and update.callback_query.message.chat.title
+            ):
+                chat_title = str(update.callback_query.message.chat.title)
             return MessagePayload(
                 chat_id=update.chat_id,
                 action=PayloadAction.EDIT,
                 message_id=update.callback_query.message.message_id,
-                text="Лобби создано. Можно присоединяться и менять настройки.",
+                text=await build_lobby_text(
+                    self.app,
+                    game,
+                    chat_title=chat_title,
+                ),
                 keyboard=render_lobby_keyboard(),
             )
 
@@ -171,12 +196,16 @@ class GameSettingsHandler(BaseHandler):
             action=PayloadAction.EDIT,
             message_id=update.callback_query.message.message_id,
             text=render_settings_text(settings),
-            keyboard=render_settings_keyboard(settings, use_client=(update.source_platform or "TG")),
+            keyboard=render_settings_keyboard(
+                settings, use_client=(update.source_platform or "TG")
+            ),
         )
 
-    async def _handle_text_input(self, update: Update, game) -> Optional[MessagePayload]:
+    async def _handle_text_input(self, update: Update, game) -> MessagePayload | None:
         source_platform = (update.source_platform or "TG").upper()
-        state = await self.app.fsm.get_state(update.from_user.id, platform=source_platform)
+        state = await self.app.fsm.get_state(
+            update.from_user.id, platform=source_platform
+        )
         if not state:
             return None
 
@@ -190,7 +219,9 @@ class GameSettingsHandler(BaseHandler):
         try:
             settings = set_setting_value(settings, field_name, update.text or "")
         except ValueError:
-            await self.app.sender.delete_message(update.chat_id, update.message.message_id)
+            await self.app.sender.delete_message(
+                update.chat_id, update.message.message_id
+            )
             return MessagePayload(
                 chat_id=update.chat_id,
                 action=PayloadAction.EDIT,
@@ -220,5 +251,7 @@ class GameSettingsHandler(BaseHandler):
             action=PayloadAction.EDIT,
             message_id=settings_message_id,
             text=render_settings_text(settings),
-            keyboard=render_settings_keyboard(settings, use_client=(update.source_platform or "TG")),
+            keyboard=render_settings_keyboard(
+                settings, use_client=(update.source_platform or "TG")
+            ),
         )

@@ -1,5 +1,7 @@
 import logging
+
 from aiohttp import web
+
 from app.web.application import setup_app
 
 

@@ -71,7 +71,11 @@ def test_bootstrap_admin_creates_when_missing(monkeypatch) -> None:
         Column("password_hash", String),
         Column("is_staff", Boolean),
     )
-    monkeypatch.setattr(admin, "_get_table", lambda name: users_table if name == "api_auth_users" else None)
+    monkeypatch.setattr(
+        admin,
+        "_get_table",
+        lambda name: users_table if name == "api_auth_users" else None,
+    )
 
     session = _SessionContext([None])
     app = SimpleNamespace(
@@ -94,7 +98,11 @@ def test_bootstrap_admin_elevates_existing_non_staff(monkeypatch) -> None:
         Column("password_hash", String),
         Column("is_staff", Boolean),
     )
-    monkeypatch.setattr(admin, "_get_table", lambda name: users_table if name == "api_auth_users" else None)
+    monkeypatch.setattr(
+        admin,
+        "_get_table",
+        lambda name: users_table if name == "api_auth_users" else None,
+    )
 
     session = _SessionContext([{"id": 7, "is_staff": False}])
     app = SimpleNamespace(
@@ -117,7 +125,11 @@ def test_bootstrap_admin_keeps_existing_staff(monkeypatch) -> None:
         Column("password_hash", String),
         Column("is_staff", Boolean),
     )
-    monkeypatch.setattr(admin, "_get_table", lambda name: users_table if name == "api_auth_users" else None)
+    monkeypatch.setattr(
+        admin,
+        "_get_table",
+        lambda name: users_table if name == "api_auth_users" else None,
+    )
 
     session = _SessionContext([{"id": 7, "is_staff": True}])
     app = SimpleNamespace(

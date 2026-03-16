@@ -46,20 +46,26 @@ def _update_dm_feed(state: dict, generated: dict[str, Any] | None) -> bool:
         )
         changed = True
 
-    event_item = generated.get("event")
-    if event_item:
+    event_items = generated.get("events") or []
+    if not event_items and generated.get("event"):
+        event_items = [generated["event"]]
+    for event_item in event_items:
         event_ticks = max(0, int(event_item.get("ticks_left", 0)))
         active_until = tick + event_ticks
-        feed["events"].append(
-            {
-                "asset_name": event_item.get("asset_name"),
-                "delta": float(event_item.get("delta", 0.0)),
-                "source_tick": tick,
-                "event_ticks": event_ticks,
-                "active_until": active_until,
-                "display_until": active_until + 1,
-            }
-        )
+        delta_raw = event_item.get("delta")
+        event_entry = {
+            "asset_name": event_item.get("asset_name"),
+            "source_tick": tick,
+            "event_ticks": event_ticks,
+            "active_until": active_until,
+            "display_until": active_until + 1,
+            "text": event_item.get("text"),
+            "ended_text": event_item.get("ended_text"),
+            "include_remaining": bool(event_item.get("include_remaining", True)),
+        }
+        if delta_raw is not None:
+            event_entry["delta"] = float(delta_raw)
+        feed["events"].append(event_entry)
         changed = True
 
     insider_item = generated.get("insider")
@@ -68,7 +74,9 @@ def _update_dm_feed(state: dict, generated: dict[str, Any] | None) -> bool:
             {
                 "asset_name": insider_item.get("asset_name"),
                 "forecast_percent": float(insider_item.get("forecast_percent", 0.0)),
-                "true_change_percent": float(insider_item.get("true_change_percent", 0.0)),
+                "true_change_percent": float(
+                    insider_item.get("true_change_percent", 0.0)
+                ),
                 "source_tick": tick,
                 "display_until": tick + 1,
             }

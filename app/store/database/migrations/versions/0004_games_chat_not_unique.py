@@ -5,16 +5,15 @@ Revises: 0003_games_chat_bigint
 Create Date: 2026-03-14 00:00:02.000000
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 from sqlalchemy import inspect
 
-
 revision: str = "0004_games_chat_not_unique"
-down_revision: Union[str, Sequence[str], None] = "0003_games_chat_bigint"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0003_games_chat_bigint"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

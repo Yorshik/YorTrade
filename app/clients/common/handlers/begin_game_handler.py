@@ -1,8 +1,7 @@
 import logging
-from typing import Optional
 
 from app.clients.common.handlers.base import BaseHandler
-from app.clients.common.mailbox import Update, MessageType, MessagePayload
+from app.clients.common.mailbox import MessagePayload, MessageType, Update
 from app.market.models import GameStatus
 from app.utils.game_setup import initialize_game_market
 from app.utils.lobby import normalize_game_settings
@@ -27,8 +26,13 @@ class BeginGameHandler(BaseHandler):
         if command != "begin_game":
             return False
         source_platform = (update.source_platform or "TG").upper()
-        user_state = await self.app.fsm.get_state(update.from_user.id, platform=source_platform)
-        if user_state and user_state[0] not in {self.app.fsm.FSM.IN_LOBBY, self.app.fsm.FSM.GAME_SETTINGS}:
+        user_state = await self.app.fsm.get_state(
+            update.from_user.id, platform=source_platform
+        )
+        if user_state and user_state[0] not in {
+            self.app.fsm.FSM.IN_LOBBY,
+            self.app.fsm.FSM.GAME_SETTINGS,
+        }:
             logger.debug("BeginGameHandler rejected by state=%s", user_state[0])
             return False
         return True
@@ -37,24 +41,33 @@ class BeginGameHandler(BaseHandler):
         if update.callback_query.data != "begin_game":
             return False
         source_platform = (update.source_platform or "TG").upper()
-        user_state = await self.app.fsm.get_state(update.from_user.id, platform=source_platform)
-        logger.debug("BeginGameHandler callback state=%s", user_state[0] if user_state else None)
+        user_state = await self.app.fsm.get_state(
+            update.from_user.id, platform=source_platform
+        )
+        logger.debug(
+            "BeginGameHandler callback state=%s", user_state[0] if user_state else None
+        )
         if user_state and user_state[0] == self.app.fsm.FSM.IDLE:
             await self.app.sender.answer_callback_query(
                 callback_query_id=update.callback_query.id,
                 text="ты не в лобби",
-                show_alert=True
+                show_alert=True,
             )
             return False
-        elif user_state and user_state[0] in {self.app.fsm.FSM.IN_LOBBY, self.app.fsm.FSM.GAME_SETTINGS}:
-            game = await self.app.market.game.get_by_chat_id(update.chat_id, platform=source_platform)
+        elif user_state and user_state[0] in {
+            self.app.fsm.FSM.IN_LOBBY,
+            self.app.fsm.FSM.GAME_SETTINGS,
+        }:
+            game = await self.app.market.game.get_by_chat_id(
+                update.chat_id, platform=source_platform
+            )
             if not game:
                 return False
             if not await self._is_host(game, update):
                 await self.app.sender.answer_callback_query(
                     callback_query_id=update.callback_query.id,
                     text="только хост может запустить игру",
-                    show_alert=True
+                    show_alert=True,
                 )
                 return False
             if not await self._has_enough_players(update.chat_id, source_platform):
@@ -62,7 +75,7 @@ class BeginGameHandler(BaseHandler):
                 await self.app.sender.answer_callback_query(
                     callback_query_id=update.callback_query.id,
                     text=f"нужно минимум {min_players} игрок(а/ов), чтобы начать игру",
-                    show_alert=True
+                    show_alert=True,
                 )
                 return False
         else:
@@ -87,18 +100,18 @@ class BeginGameHandler(BaseHandler):
         logger.debug("BeginGameHandler game found=%s", bool(game))
         if not game:
             return False
-        if not await self._is_host(game, update):
-            return False
-        return True
+        return await self._is_host(game, update)
 
     async def _is_host(self, game, update: Update) -> bool:
         source_platform = (update.source_platform or "TG").upper()
-        actor_user = await self.app.users.user.get_by_external(source_platform, update.from_user.id)
+        actor_user = await self.app.users.user.get_by_external(
+            source_platform, update.from_user.id
+        )
         if actor_user is None:
             return False
         return game.host_id == actor_user.id
 
-    async def handle(self, update: Update) -> Optional[MessagePayload]:
+    async def handle(self, update: Update) -> MessagePayload | None:
         game = await self.app.market.game.get_by_chat_id(
             update.chat_id,
             platform=(update.source_platform or "TG"),
@@ -116,7 +129,9 @@ class BeginGameHandler(BaseHandler):
             )
 
         source_platform = (update.source_platform or "TG").upper()
-        host_user = await self.app.users.user.get_by_external(source_platform, update.from_user.id)
+        host_user = await self.app.users.user.get_by_external(
+            source_platform, update.from_user.id
+        )
         if host_user is None or not host_user.dm_chat_id:
             return MessagePayload(
                 chat_id=update.chat_id,
@@ -139,7 +154,11 @@ class BeginGameHandler(BaseHandler):
         chat_title = None
         if update.message and update.message.chat.title:
             chat_title = update.message.chat.title
-        elif update.callback_query and update.callback_query.message and update.callback_query.message.chat.title:
+        elif (
+            update.callback_query
+            and update.callback_query.message
+            and update.callback_query.message.chat.title
+        ):
             chat_title = update.callback_query.message.chat.title
 
         try:
@@ -164,7 +183,9 @@ class BeginGameHandler(BaseHandler):
         game.status = GameStatus.ACTIVE
         game.settings = settings
         await self.app.market.game.save(game)
-        await self.app.game_engine.start_game(game.id, tick_interval=settings["tick_seconds"])
+        await self.app.game_engine.start_game(
+            game.id, tick_interval=settings["tick_seconds"]
+        )
 
         return MessagePayload(
             chat_id=update.chat_id,

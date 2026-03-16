@@ -1,6 +1,17 @@
-from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, JSON, BigInteger, String
-from sqlalchemy.sql import func
 import enum
+
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+)
+from sqlalchemy.sql import func
 
 from app.store.database.base import Base
 
@@ -12,7 +23,7 @@ class GameStatus(enum.Enum):
 
 
 class Game(Base):
-    __tablename__ = 'games'
+    __tablename__ = "games"
     id = Column(Integer, primary_key=True)
     chat_id = Column(BigInteger, nullable=False)
     host_id = Column(BigInteger, nullable=False)
@@ -24,9 +35,9 @@ class Game(Base):
 
 
 class GameAsset(Base):
-    __tablename__ = 'game_assets'
-    game_id = Column(Integer, ForeignKey('games.id'), primary_key=True)
-    asset_id = Column(Integer, ForeignKey('assets.id'), primary_key=True)
+    __tablename__ = "game_assets"
+    game_id = Column(Integer, ForeignKey("games.id"), primary_key=True)
+    asset_id = Column(Integer, ForeignKey("assets.id"), primary_key=True)
     start_price = Column(Float, nullable=False)
     volatility = Column(Float, nullable=False)
     shares_total = Column(Integer, nullable=False, default=1000)
@@ -34,9 +45,9 @@ class GameAsset(Base):
 
 
 class Portfolio(Base):
-    __tablename__ = 'portfolios'
-    player_id = Column(Integer, ForeignKey('players.id'), primary_key=True)
-    asset_id = Column(Integer, ForeignKey('assets.id'), primary_key=True)
+    __tablename__ = "portfolios"
+    player_id = Column(Integer, ForeignKey("players.id"), primary_key=True)
+    asset_id = Column(Integer, ForeignKey("assets.id"), primary_key=True)
     amount = Column(Integer, nullable=False, default=0)
 
 
@@ -46,11 +57,11 @@ class DealType(enum.Enum):
 
 
 class Deal(Base):
-    __tablename__ = 'deals'
+    __tablename__ = "deals"
     id = Column(Integer, primary_key=True)
-    player_id = Column(Integer, ForeignKey('players.id'), nullable=False)
-    game_id = Column(Integer, ForeignKey('games.id'), nullable=False)
-    asset_id = Column(Integer, ForeignKey('assets.id'), nullable=False)
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+    game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
+    asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)
     type = Column(Enum(DealType), nullable=False)
     amount = Column(Integer, nullable=False)
     price = Column(Float, nullable=False)

@@ -5,17 +5,16 @@ Revises: 0002_sync_current_game_schema
 Create Date: 2026-03-14 00:00:01.000000
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import inspect
 
-
 revision: str = "0003_games_chat_bigint"
-down_revision: Union[str, Sequence[str], None] = "0002_sync_current_game_schema"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0002_sync_current_game_schema"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -26,7 +25,9 @@ def upgrade() -> None:
     if chat_id_column is None:
         return
 
-    if isinstance(chat_id_column["type"], sa.Integer) and not isinstance(chat_id_column["type"], sa.BigInteger):
+    if isinstance(chat_id_column["type"], sa.Integer) and not isinstance(
+        chat_id_column["type"], sa.BigInteger
+    ):
         with op.batch_alter_table("games") as batch_op:
             batch_op.alter_column(
                 "chat_id",

@@ -1,7 +1,7 @@
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from app.clients.common.mailbox import MessagePayload, MessageType, Update
-from app.web.middlewares.base import BaseMiddleware, STOP_PROCESSING
+from app.web.middlewares.base import STOP_PROCESSING, BaseMiddleware
 
 if TYPE_CHECKING:
     from app.web.application import App
@@ -33,7 +33,7 @@ class GameAccessMiddleware(BaseMiddleware):
         "playing_price_history",
     }
 
-    async def process(self, update: Update, app: "App") -> Optional[MessagePayload]:
+    async def process(self, update: Update, app: App) -> MessagePayload | None:
         if not update.from_user:
             return None
 
@@ -41,7 +41,11 @@ class GameAccessMiddleware(BaseMiddleware):
         state = await app.fsm.get_state(update.from_user.id, platform=source_platform)
         state_name = state[0] if state else None
 
-        if update.type == MessageType.TEXT and update.message and update.message.chat.type == "private":
+        if (
+            update.type == MessageType.TEXT
+            and update.message
+            and update.message.chat.type == "private"
+        ):
             command = update.text or ""
             if command.startswith(app.config.PREFIX):
                 command = command[1:]
@@ -52,7 +56,9 @@ class GameAccessMiddleware(BaseMiddleware):
                 return None
             if state_name in self.PLAYING_STATES:
                 return None
-            return MessagePayload(chat_id=update.chat_id, text="У тебя нет активной игры.")
+            return MessagePayload(
+                chat_id=update.chat_id, text="У тебя нет активной игры."
+            )
 
         if update.type == MessageType.CALLBACK_QUERY and update.callback_query:
             callback_data = update.callback_query.data or ""

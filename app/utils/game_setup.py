@@ -6,7 +6,7 @@ from app.utils.runtime import RuntimeState, save_runtime_state
 
 
 def _random_volatility(global_volatility: float) -> float:
-    max_step = max(1, int(round(global_volatility * 10)))
+    max_step = max(1, round(global_volatility * 10))
     return round(random.randint(1, max_step) / 10, 1)
 
 
@@ -27,7 +27,9 @@ def _build_asset_runtime(asset, start_price: float, volatility: float) -> dict:
     }
 
 
-async def initialize_game_market(app, game, chat_title: str | None = None) -> RuntimeState:
+async def initialize_game_market(
+    app, game, chat_title: str | None = None
+) -> RuntimeState:
     settings = normalize_game_settings(game.settings)
     assets = await app.data.asset.list_all()
     companies_amount = int(settings.get("companies_amount") or 0)
@@ -53,12 +55,15 @@ async def initialize_game_market(app, game, chat_title: str | None = None) -> Ru
         "last_news": [],
         "last_event": None,
         "last_insider_info": None,
+        "global_event": None,
         "inside_info_by_player": {},
         "assets": {},
         "chat_title": chat_title,
         "game_started_at": started_at.isoformat(),
         "game_duration_seconds": int(settings["game_duration_minutes"] * 60),
-        "ends_at": (started_at + timedelta(minutes=settings["game_duration_minutes"])).isoformat(),
+        "ends_at": (
+            started_at + timedelta(minutes=settings["game_duration_minutes"])
+        ).isoformat(),
         "updated_at": None,
     }
 

@@ -1,9 +1,9 @@
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-from app.web.middlewares.base import BaseMiddleware
-from app.clients.common.mailbox import Update, MessagePayload
+from app.clients.common.mailbox import MessagePayload, Update
 from app.utils.platform import normalize_platform
+from app.web.middlewares.base import BaseMiddleware
 
 if TYPE_CHECKING:
     from app.web.application import App
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class UserMiddleware(BaseMiddleware):
-    async def process(self, update: Update, app: App) -> Optional[MessagePayload]:
+    async def process(self, update: Update, app: App) -> MessagePayload | None:
         if not update.from_user:
             logger.warning("Не удалось получить данные пользователя из обновления.")
             return None
@@ -29,9 +29,12 @@ class UserMiddleware(BaseMiddleware):
         if created_user:
             logger.info("Пользователь %s успешно создан.", tg_user.id)
 
-        if update.message and update.message.chat.type == "private":
-            if user.dm_chat_id != update.chat_id:
-                await app.users.user.update_private_chat(user, update.chat_id)
+        if (
+            update.message
+            and update.message.chat.type == "private"
+            and user.dm_chat_id != update.chat_id
+        ):
+            await app.users.user.update_private_chat(user, update.chat_id)
 
         if await app.fsm.get_state(tg_user.id, platform=platform) is None:
             await app.fsm.set_state(tg_user.id, app.fsm.FSM.IDLE, platform=platform)

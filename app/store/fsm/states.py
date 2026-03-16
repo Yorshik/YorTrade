@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class FSM(str, Enum):
+class FSM(StrEnum):
     IDLE = "idle"
     IN_LOBBY = "in_lobby"
     GAME_SETTINGS = "game_settings"

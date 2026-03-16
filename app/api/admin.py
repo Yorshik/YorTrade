@@ -8,19 +8,20 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from apispec import APISpec
 from aiohttp import web
+from apispec import APISpec
 from sqlalchemy import asc, delete, desc, func, insert, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql.schema import Table
 from sqlalchemy.sql.sqltypes import BIGINT, Boolean, DateTime, Enum, Float, Integer
 
+from app.api.models import ApiAuthSession, ApiAuthUser  # noqa: F401
+
 # Ensure models are imported so Base.metadata is fully populated.
 from app.data.models import Asset, Phrase  # noqa: F401
 from app.market.models import Deal, Game, GameAsset, Portfolio  # noqa: F401
-from app.api.models import ApiAuthSession, ApiAuthUser  # noqa: F401
 from app.store.database.base import Base
-from app.users.models import Player, User  # noqa: F401
+from app.users.models import AchievementStats, Player, User  # noqa: F401
 
 RESERVED_QUERY_KEYS = {"limit", "offset", "order_by", "order_dir"}
 AUTH_TOKEN_HEADER = "X-Auth-Token"
@@ -62,7 +63,10 @@ def _parse_enum(column_type: Enum, value: Any) -> Any:
 
     raw = str(value).strip()
     for member in enum_class:
-        if raw.lower() == member.name.lower() or raw.lower() == str(member.value).lower():
+        if (
+            raw.lower() == member.name.lower()
+            or raw.lower() == str(member.value).lower()
+        ):
             return member
     return value
 
@@ -162,10 +166,16 @@ async def ensure_bootstrap_admin(app) -> None:
     username = str(getattr(app.config, "ADMIN_LOGIN", "") or "").strip()
     password = str(getattr(app.config, "ADMIN_PASS", "") or "")
     if not username or not password:
-        raise RuntimeError("Set ADMIN_LOGIN and ADMIN_PASS in .env to bootstrap admin account")
+        raise RuntimeError(
+            "Set ADMIN_LOGIN and ADMIN_PASS in .env to bootstrap admin account"
+        )
 
     users = _get_table("api_auth_users")
-    select_stmt = select(users.c.id, users.c.is_staff).where(users.c.username == username).limit(1)
+    select_stmt = (
+        select(users.c.id, users.c.is_staff)
+        .where(users.c.username == username)
+        .limit(1)
+    )
     async with app.db.session as session:
         existing = (await session.execute(select_stmt)).mappings().first()
         if existing is None:
@@ -182,9 +192,7 @@ async def ensure_bootstrap_admin(app) -> None:
 
         if not bool(existing["is_staff"]):
             await session.execute(
-                update(users)
-                .where(users.c.id == existing["id"])
-                .values(is_staff=True)
+                update(users).where(users.c.id == existing["id"]).values(is_staff=True)
             )
             await session.commit()
             logger.info("Bootstrap admin elevated to staff username=%s", username)
@@ -193,7 +201,7 @@ async def ensure_bootstrap_admin(app) -> None:
 def _extract_auth_token(request: web.Request) -> str | None:
     authorization = (request.headers.get("Authorization") or "").strip()
     if authorization.lower().startswith(AUTH_BEARER_PREFIX):
-        bearer_token = authorization[len(AUTH_BEARER_PREFIX):].strip()
+        bearer_token = authorization[len(AUTH_BEARER_PREFIX) :].strip()
         if bearer_token:
             return bearer_token
     token = (request.headers.get(AUTH_TOKEN_HEADER) or "").strip()
@@ -233,7 +241,9 @@ async def _get_authenticated_user(request: web.Request) -> dict[str, Any] | None
         if row is None:
             return None
         if _is_expired(row.get("expires_at")):
-            await session.execute(delete(sessions).where(sessions.c.id == row["session_id"]))
+            await session.execute(
+                delete(sessions).where(sessions.c.id == row["session_id"])
+            )
             await session.commit()
             return None
         return {
@@ -286,7 +296,9 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
         title="YorTrade Admin API",
         version="1.0.0",
         openapi_version="3.0.3",
-        info={"description": "CRUD API with auth and role-based access over database tables."},
+        info={
+            "description": "CRUD API with auth and role-based access over database tables."
+        },
     )
     spec.components.security_scheme(
         "BearerAuth",
@@ -385,11 +397,36 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
                 "summary": "List rows with filters",
                 "security": [{"BearerAuth": []}],
                 "parameters": [
-                    {"name": "table", "in": "path", "required": True, "schema": {"type": "string"}},
-                    {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer"}},
-                    {"name": "offset", "in": "query", "required": False, "schema": {"type": "integer"}},
-                    {"name": "order_by", "in": "query", "required": False, "schema": {"type": "string"}},
-                    {"name": "order_dir", "in": "query", "required": False, "schema": {"type": "string"}},
+                    {
+                        "name": "table",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                    {
+                        "name": "order_by",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "string"},
+                    },
+                    {
+                        "name": "order_dir",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "string"},
+                    },
                 ],
                 "responses": {"200": {"description": "Rows list"}},
             },
@@ -397,7 +434,12 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
                 "summary": "Create row",
                 "security": [{"BearerAuth": []}],
                 "parameters": [
-                    {"name": "table", "in": "path", "required": True, "schema": {"type": "string"}}
+                    {
+                        "name": "table",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    }
                 ],
                 "requestBody": {
                     "required": True,
@@ -414,8 +456,18 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
                 "summary": "Read row by single primary key",
                 "security": [{"BearerAuth": []}],
                 "parameters": [
-                    {"name": "table", "in": "path", "required": True, "schema": {"type": "string"}},
-                    {"name": "item_id", "in": "path", "required": True, "schema": {"type": "string"}},
+                    {
+                        "name": "table",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
+                    {
+                        "name": "item_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
                 ],
                 "responses": {"200": {"description": "Row"}},
             },
@@ -423,8 +475,18 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
                 "summary": "Update row by single primary key",
                 "security": [{"BearerAuth": []}],
                 "parameters": [
-                    {"name": "table", "in": "path", "required": True, "schema": {"type": "string"}},
-                    {"name": "item_id", "in": "path", "required": True, "schema": {"type": "string"}},
+                    {
+                        "name": "table",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
+                    {
+                        "name": "item_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
                 ],
                 "requestBody": {
                     "required": True,
@@ -436,8 +498,18 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
                 "summary": "Delete row by single primary key",
                 "security": [{"BearerAuth": []}],
                 "parameters": [
-                    {"name": "table", "in": "path", "required": True, "schema": {"type": "string"}},
-                    {"name": "item_id", "in": "path", "required": True, "schema": {"type": "string"}},
+                    {
+                        "name": "table",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
+                    {
+                        "name": "item_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
                 ],
                 "responses": {"200": {"description": "Deleted row"}},
             },
@@ -450,8 +522,18 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
                 "summary": "Delete many rows with optional query filters",
                 "security": [{"BearerAuth": []}],
                 "parameters": [
-                    {"name": "table", "in": "path", "required": True, "schema": {"type": "string"}},
-                    {"name": "confirm", "in": "query", "required": True, "schema": {"type": "string"}},
+                    {
+                        "name": "table",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
+                    {
+                        "name": "confirm",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
                 ],
                 "responses": {"200": {"description": "Delete stats"}},
             }
@@ -464,9 +546,24 @@ def _build_openapi_spec(request: web.Request) -> dict[str, Any]:
                 "summary": "Delete user by user_id or (platform + tg_user_id)",
                 "security": [{"BearerAuth": []}],
                 "parameters": [
-                    {"name": "user_id", "in": "query", "required": False, "schema": {"type": "integer"}},
-                    {"name": "tg_user_id", "in": "query", "required": False, "schema": {"type": "integer"}},
-                    {"name": "platform", "in": "query", "required": False, "schema": {"type": "string"}},
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                    {
+                        "name": "tg_user_id",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                    {
+                        "name": "platform",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "string"},
+                    },
                 ],
                 "responses": {"200": {"description": "Deleted user"}},
             }
@@ -494,13 +591,17 @@ async def login_api_user(request: web.Request) -> web.Response:
     async with request.app.db.session as session:
         user_result = await session.execute(user_stmt)
         user_row = user_result.mappings().first()
-        if not user_row or not _verify_password(password, str(user_row["password_hash"])):
+        if not user_row or not _verify_password(
+            password, str(user_row["password_hash"])
+        ):
             raise web.HTTPUnauthorized(
                 text=json.dumps({"error": "Invalid credentials"}),
                 content_type="application/json",
             )
 
-        ttl_hours = max(1, int(getattr(request.app.config, "API_AUTH_TTL_HOURS", 24) or 24))
+        ttl_hours = max(
+            1, int(getattr(request.app.config, "API_AUTH_TTL_HOURS", 24) or 24)
+        )
         expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
         token = secrets.token_urlsafe(32)
         session_stmt = (
@@ -520,7 +621,9 @@ async def login_api_user(request: web.Request) -> web.Response:
         {
             "token": token,
             "token_type": "Bearer",
-            "expires_at": _serialize_value(created_session["expires_at"]) if created_session else None,
+            "expires_at": _serialize_value(created_session["expires_at"])
+            if created_session
+            else None,
             "user": {
                 "id": user_row["id"],
                 "username": user_row["username"],
@@ -609,15 +712,14 @@ async def health(request: web.Request) -> web.Response:
 
 async def list_tables(request: web.Request) -> web.Response:
     await _ensure_authenticated(request)
-    payload = []
-    for table in _available_tables().values():
-        payload.append(
-            {
-                "table": table.name,
-                "primary_keys": [column.name for column in table.primary_key.columns],
-                "columns": [column.name for column in table.columns],
-            }
-        )
+    payload = [
+        {
+            "table": table.name,
+            "primary_keys": [column.name for column in table.primary_key.columns],
+            "columns": [column.name for column in table.columns],
+        }
+        for table in _available_tables().values()
+    ]
     payload.sort(key=lambda item: item["table"])
     return web.json_response({"tables": payload})
 
@@ -634,9 +736,11 @@ async def read_rows(request: web.Request) -> web.Response:
     stmt = select(table).where(*filters)
     if order_by and order_by in table.columns:
         order_column = table.columns[order_by]
-        stmt = stmt.order_by(desc(order_column) if order_dir == "desc" else asc(order_column))
+        stmt = stmt.order_by(
+            desc(order_column) if order_dir == "desc" else asc(order_column)
+        )
     elif table.primary_key.columns:
-        first_pk = list(table.primary_key.columns)[0]
+        first_pk = next(iter(table.primary_key.columns))
         stmt = stmt.order_by(asc(first_pk))
     stmt = stmt.limit(limit).offset(offset)
 
@@ -673,7 +777,9 @@ async def read_row_by_id(request: web.Request) -> web.Response:
 
     if row is None:
         raise web.HTTPNotFound(
-            text=json.dumps({"error": f"Row not found in '{table.name}' for {pk.name}={raw_id}"}),
+            text=json.dumps(
+                {"error": f"Row not found in '{table.name}' for {pk.name}={raw_id}"}
+            ),
             content_type="application/json",
         )
     return web.json_response({"table": table.name, "row": _serialize_row(dict(row))})
@@ -750,10 +856,14 @@ async def update_row_by_id(request: web.Request) -> web.Response:
 
     if row is None:
         raise web.HTTPNotFound(
-            text=json.dumps({"error": f"Row not found in '{table.name}' for {pk.name}={raw_id}"}),
+            text=json.dumps(
+                {"error": f"Row not found in '{table.name}' for {pk.name}={raw_id}"}
+            ),
             content_type="application/json",
         )
-    return web.json_response({"table": table.name, "updated": _serialize_row(dict(row))})
+    return web.json_response(
+        {"table": table.name, "updated": _serialize_row(dict(row))}
+    )
 
 
 async def delete_row_by_id(request: web.Request) -> web.Response:
@@ -777,7 +887,9 @@ async def delete_row_by_id(request: web.Request) -> web.Response:
 
     if deleted is None:
         raise web.HTTPNotFound(
-            text=json.dumps({"error": f"Row not found in '{table.name}' for {pk.name}={raw_id}"}),
+            text=json.dumps(
+                {"error": f"Row not found in '{table.name}' for {pk.name}={raw_id}"}
+            ),
             content_type="application/json",
         )
     return web.json_response({"table": table.name, "deleted": {pk.name: deleted}})
@@ -823,7 +935,9 @@ async def delete_user_legacy(request: web.Request) -> web.Response:
     if tg_user_id and not user_id and not platform:
         raise web.HTTPBadRequest(
             text=json.dumps(
-                {"error": "Pass platform together with tg_user_id (e.g. platform=TG or platform=VK)"}
+                {
+                    "error": "Pass platform together with tg_user_id (e.g. platform=TG or platform=VK)"
+                }
             ),
             content_type="application/json",
         )
@@ -832,10 +946,16 @@ async def delete_user_legacy(request: web.Request) -> web.Response:
     if user_id:
         filters.append(table.c.id == _coerce_value(table.c.id, user_id))
     if tg_user_id:
-        filters.append(table.c.tg_user_id == _coerce_value(table.c.tg_user_id, tg_user_id))
+        filters.append(
+            table.c.tg_user_id == _coerce_value(table.c.tg_user_id, tg_user_id)
+        )
     if platform:
         filters.append(table.c.platform == str(platform).upper())
-    stmt = delete(table).where(*filters).returning(table.c.id, table.c.tg_user_id, table.c.platform)
+    stmt = (
+        delete(table)
+        .where(*filters)
+        .returning(table.c.id, table.c.tg_user_id, table.c.platform)
+    )
     try:
         async with request.app.db.session as session:
             result = await session.execute(stmt)

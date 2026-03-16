@@ -50,7 +50,9 @@ def _request(query: dict[str, str], *, db=None):
 
 
 def test_delete_user_by_tg_id_requires_platform(monkeypatch) -> None:
-    monkeypatch.setattr(admin, "_ensure_staff", AsyncMock(return_value={"id": 1, "is_staff": True}))
+    monkeypatch.setattr(
+        admin, "_ensure_staff", AsyncMock(return_value={"id": 1, "is_staff": True})
+    )
     request = _request({"tg_user_id": "123"})
 
     with pytest.raises(web.HTTPBadRequest) as exc:
@@ -59,8 +61,12 @@ def test_delete_user_by_tg_id_requires_platform(monkeypatch) -> None:
 
 
 def test_delete_user_by_tg_id_and_platform_is_allowed(monkeypatch) -> None:
-    monkeypatch.setattr(admin, "_ensure_staff", AsyncMock(return_value={"id": 1, "is_staff": True}))
-    db = SimpleNamespace(session=_SessionContext({"id": 1, "tg_user_id": 123, "platform": "TG"}))
+    monkeypatch.setattr(
+        admin, "_ensure_staff", AsyncMock(return_value={"id": 1, "is_staff": True})
+    )
+    db = SimpleNamespace(
+        session=_SessionContext({"id": 1, "tg_user_id": 123, "platform": "TG"})
+    )
     request = _request({"tg_user_id": "123", "platform": "TG"}, db=db)
 
     response = asyncio.run(admin.delete_user_legacy(request))

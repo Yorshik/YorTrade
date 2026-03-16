@@ -1,13 +1,30 @@
 import logging
-from typing import Optional
 
 from app.clients.common.handlers.base import BaseHandler
-from app.clients.common.mailbox import Update, MessagePayload, MessageType
+from app.clients.common.mailbox import (
+    MessagePayload,
+    MessageType,
+    PayloadAction,
+    Update,
+)
+from app.utils.lobby import build_lobby_text, render_lobby_keyboard
 
 logger = logging.getLogger(__name__)
 
 
 class JoinGameHandler(BaseHandler):
+    @staticmethod
+    def _chat_title(update: Update) -> str | None:
+        if update.message and update.message.chat.title:
+            return str(update.message.chat.title)
+        if (
+            update.callback_query
+            and update.callback_query.message
+            and update.callback_query.message.chat.title
+        ):
+            return str(update.callback_query.message.chat.title)
+        return None
+
     async def check_command(self, update: Update):
         if not update.from_user:
             return False
@@ -16,9 +33,13 @@ class JoinGameHandler(BaseHandler):
         if command not in {"join_gameYT", "join_game"}:
             return False
         source_platform = (update.source_platform or "TG").upper()
-        user_state = await self.app.fsm.get_state(update.from_user.id, platform=source_platform)
+        user_state = await self.app.fsm.get_state(
+            update.from_user.id, platform=source_platform
+        )
         if user_state and user_state[0] != self.app.fsm.FSM.IDLE:
-            logger.debug("JoinGameHandler rejected: user already in state=%s", user_state[0])
+            logger.debug(
+                "JoinGameHandler rejected: user already in state=%s", user_state[0]
+            )
             return False
         return True
 
@@ -28,12 +49,14 @@ class JoinGameHandler(BaseHandler):
         if not update.from_user:
             return False
         source_platform = (update.source_platform or "TG").upper()
-        user_state = await self.app.fsm.get_state(update.from_user.id, platform=source_platform)
+        user_state = await self.app.fsm.get_state(
+            update.from_user.id, platform=source_platform
+        )
         if user_state and user_state[0] != self.app.fsm.FSM.IDLE:
             await self.app.sender.answer_callback_query(
                 callback_query_id=update.callback_query.id,
                 text="ты уже присоединился(-лась)",
-                show_alert=True
+                show_alert=True,
             )
             return False
         return True
@@ -45,18 +68,24 @@ class JoinGameHandler(BaseHandler):
             return await self.check_callback(update)
         return False
 
-    async def handle(self, update: Update) -> Optional[MessagePayload]:
+    async def handle(self, update: Update) -> MessagePayload | None:
         tg_user = update.from_user
         name = tg_user.first_name
         source_platform = (update.source_platform or "TG").upper()
 
-        game = await self.app.market.game.get_by_chat_id(update.chat_id, platform=source_platform)
+        game = await self.app.market.game.get_by_chat_id(
+            update.chat_id, platform=source_platform
+        )
         if not game:
-            return MessagePayload(chat_id=update.chat_id, text="Активная игра не найдена.")
+            return MessagePayload(
+                chat_id=update.chat_id, text="Активная игра не найдена."
+            )
 
         user = await self.app.users.user.get_by_external(source_platform, tg_user.id)
         if user is None:
-            user, _ = await self.app.users.user.get_or_create(source_platform, tg_user.id, tg_user.username)
+            user, _ = await self.app.users.user.get_or_create(
+                source_platform, tg_user.id, tg_user.username
+            )
 
         if not user.dm_chat_id:
             if update.type == MessageType.CALLBACK_QUERY:
@@ -81,11 +110,25 @@ class JoinGameHandler(BaseHandler):
             {"game_id": game.id},
             platform=source_platform,
         )
+        lobby_text = await build_lobby_text(
+            self.app,
+            game,
+            chat_title=self._chat_title(update),
+        )
+
+        if update.type == MessageType.CALLBACK_QUERY:
+            await self.app.sender.answer_callback_query(
+                callback_query_id=update.callback_query.id,
+                text=f"{name}, ты в игре.",
+            )
+            return MessagePayload(
+                chat_id=update.chat_id,
+                action=PayloadAction.EDIT,
+                message_id=update.callback_query.message.message_id,
+                text=lobby_text,
+                keyboard=render_lobby_keyboard(),
+            )
 
         return MessagePayload(
-            chat_id=update.chat_id,
-            text=(
-                f"{name} присоединился к игре!\n"
-                f"Платформа: {source_platform}"
-            ),
+            chat_id=update.chat_id, text=lobby_text, keyboard=render_lobby_keyboard()
         )

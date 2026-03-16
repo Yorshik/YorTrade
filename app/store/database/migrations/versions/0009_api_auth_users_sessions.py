@@ -5,17 +5,16 @@ Revises: 0008_split_users_by_platform
 Create Date: 2026-03-17 00:25:00.000000
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import inspect
 
-
 revision: str = "0009_api_auth_users_sessions"
-down_revision: Union[str, Sequence[str], None] = "0008_split_users_by_platform"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0008_split_users_by_platform"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -29,8 +28,15 @@ def upgrade() -> None:
             sa.Column("id", sa.Integer(), primary_key=True),
             sa.Column("username", sa.String(), nullable=False, unique=True),
             sa.Column("password_hash", sa.String(), nullable=False),
-            sa.Column("is_staff", sa.Boolean(), nullable=False, server_default=sa.false()),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+            sa.Column(
+                "is_staff", sa.Boolean(), nullable=False, server_default=sa.false()
+            ),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=True,
+            ),
         )
 
     inspector = inspect(bind)
@@ -39,10 +45,20 @@ def upgrade() -> None:
         op.create_table(
             "api_auth_sessions",
             sa.Column("id", sa.Integer(), primary_key=True),
-            sa.Column("user_id", sa.Integer(), sa.ForeignKey("api_auth_users.id"), nullable=False),
+            sa.Column(
+                "user_id",
+                sa.Integer(),
+                sa.ForeignKey("api_auth_users.id"),
+                nullable=False,
+            ),
             sa.Column("token", sa.String(), nullable=False, unique=True),
             sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=True,
+            ),
         )
 
 

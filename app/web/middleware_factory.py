@@ -1,8 +1,8 @@
 import logging
-from typing import List, Optional
-from app.clients.common.mailbox import Update, MessagePayload
-from app.web.middlewares.base import BaseMiddleware, StopProcessing
 from typing import TYPE_CHECKING
+
+from app.clients.common.mailbox import MessagePayload, Update
+from app.web.middlewares.base import BaseMiddleware, StopProcessing
 
 if TYPE_CHECKING:
     from app.web.application import App
@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 class MiddlewareFactory:
     def __init__(self, app: App, middlewares):
         self.app = app
-        self.middlewares: List[BaseMiddleware] = middlewares
+        self.middlewares: list[BaseMiddleware] = middlewares
 
-    async def process_update(self, update: Update) -> Optional[MessagePayload]:
+    async def process_update(self, update: Update) -> MessagePayload | None:
         for middleware in self.middlewares:
             try:
                 logger.info(
@@ -43,11 +43,11 @@ class MiddlewareFactory:
             except Exception as e:
                 logger.error(
                     f"Ошибка в мидлвари {middleware.__class__.__name__}: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
                 return MessagePayload(
                     chat_id=update.chat_id,
-                    text="Произошла внутренняя ошибка. Попробуйте позже."
+                    text="Произошла внутренняя ошибка. Попробуйте позже.",
                 )
         logger.info("Middleware chain passed update_id=%s", update.update_id)
         return None

@@ -6,7 +6,9 @@ from app.clients.common.handlers.end_game_handler import EndGameHandler
 from app.clients.common.mailbox import Update
 
 
-def _build_group_update(text: str, *, user_id: int = 101, platform: str = "TG") -> Update:
+def _build_group_update(
+    text: str, *, user_id: int = 101, platform: str = "TG"
+) -> Update:
     return Update.model_validate(
         {
             "update_id": 1,
@@ -35,7 +37,9 @@ def test_stop_command_finishes_game_for_host() -> None:
         config=SimpleNamespace(PREFIX="/"),
         market=SimpleNamespace(
             game=SimpleNamespace(
-                get_by_chat_id=AsyncMock(return_value=SimpleNamespace(id=55, host_id=5001))
+                get_by_chat_id=AsyncMock(
+                    return_value=SimpleNamespace(id=55, host_id=5001)
+                )
             )
         ),
         users=SimpleNamespace(
@@ -63,7 +67,9 @@ def test_stop_command_rejected_for_non_host() -> None:
         config=SimpleNamespace(PREFIX="/"),
         market=SimpleNamespace(
             game=SimpleNamespace(
-                get_by_chat_id=AsyncMock(return_value=SimpleNamespace(id=55, host_id=5001))
+                get_by_chat_id=AsyncMock(
+                    return_value=SimpleNamespace(id=55, host_id=5001)
+                )
             )
         ),
         users=SimpleNamespace(

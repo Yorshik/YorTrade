@@ -1,7 +1,9 @@
 from contextvars import ContextVar, Token
 from typing import Any
 
-_UPDATE_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar("update_context", default=None)
+_UPDATE_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar(
+    "update_context", default=None
+)
 
 
 def set_update_context(

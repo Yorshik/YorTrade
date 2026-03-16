@@ -33,7 +33,9 @@ def test_refresh_private_views_bootstraps_missing_fsm_state(monkeypatch) -> None
     )
 
     state = {"tick": 1}
-    asyncio.run(live_updates.refresh_private_views(app, game_id=42, state=state, generated=None))
+    asyncio.run(
+        live_updates.refresh_private_views(app, game_id=42, state=state, generated=None)
+    )
 
     show_private_screen_mock.assert_awaited_once_with(
         app,

@@ -1,12 +1,13 @@
 from typing import Literal
 
-
 Platform = Literal["TG", "VK"]
 DEFAULT_PLATFORM: Platform = "TG"
 SUPPORTED_PLATFORMS: tuple[Platform, Platform] = ("TG", "VK")
 
 
-def normalize_platform(value: str | None, default: Platform = DEFAULT_PLATFORM) -> Platform:
+def normalize_platform(
+    value: str | None, default: Platform = DEFAULT_PLATFORM
+) -> Platform:
     if value is None:
         return default
     normalized = str(value).strip().upper()

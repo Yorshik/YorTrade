@@ -1,12 +1,11 @@
 from datetime import UTC, datetime
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.market.models import Game, GameStatus
 from app.store.database.accessor import DatabaseAccessor
-from app.users.models import Player, User
+from app.users.models import AchievementStats, Player, User
 from app.utils.platform import normalize_platform
 
 
@@ -18,13 +17,15 @@ class _UserAccessor:
     def _platform(platform: str | None) -> str:
         return normalize_platform(platform)
 
-    async def get_by_id(self, user_id: int) -> Optional[User]:
+    async def get_by_id(self, user_id: int) -> User | None:
         async with self.db.session as session:
             stmt = select(User).where(User.id == user_id)
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
-    async def get_by_external(self, platform: str, external_user_id: int) -> Optional[User]:
+    async def get_by_external(
+        self, platform: str, external_user_id: int
+    ) -> User | None:
         platform = self._platform(platform)
         async with self.db.session as session:
             stmt = select(User).where(
@@ -34,7 +35,9 @@ class _UserAccessor:
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
-    async def create(self, platform: str, external_user_id: int, username: Optional[str] = None) -> User:
+    async def create(
+        self, platform: str, external_user_id: int, username: str | None = None
+    ) -> User:
         platform = self._platform(platform)
         async with self.db.session as session:
             new_user = User(
@@ -63,7 +66,7 @@ class _UserAccessor:
         self,
         platform: str,
         external_user_id: int,
-        username: Optional[str] = None,
+        username: str | None = None,
     ) -> tuple[User, bool]:
         platform = self._platform(platform)
         async with self.db.session as session:
@@ -108,7 +111,7 @@ class _UserAccessor:
             await session.refresh(user)
             return user
 
-    async def get_fsm_state(self, platform: str, external_user_id: int) -> Optional[dict]:
+    async def get_fsm_state(self, platform: str, external_user_id: int) -> dict | None:
         platform = self._platform(platform)
         async with self.db.session as session:
             stmt = select(User.fsm_state).where(
@@ -118,7 +121,9 @@ class _UserAccessor:
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
-    async def set_fsm_state(self, platform: str, external_user_id: int, fsm_state: Optional[dict]) -> None:
+    async def set_fsm_state(
+        self, platform: str, external_user_id: int, fsm_state: dict | None
+    ) -> None:
         platform = self._platform(platform)
         async with self.db.session as session:
             stmt = select(User).where(
@@ -138,9 +143,11 @@ class _PlayerAccessor:
     def __init__(self, db: DatabaseAccessor):
         self.db = db
 
-    async def get_by_user_and_game(self, user_id: int, game_id: int) -> Optional[Player]:
+    async def get_by_user_and_game(self, user_id: int, game_id: int) -> Player | None:
         async with self.db.session as session:
-            stmt = select(Player).where(Player.user_id == user_id, Player.game_id == game_id)
+            stmt = select(Player).where(
+                Player.user_id == user_id, Player.game_id == game_id
+            )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
@@ -150,7 +157,7 @@ class _PlayerAccessor:
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
-    async def get_active_by_user(self, user_id: int) -> Optional[Player]:
+    async def get_active_by_user(self, user_id: int) -> Player | None:
         async with self.db.session as session:
             stmt = (
                 select(Player)
@@ -226,8 +233,67 @@ class _PlayerAccessor:
             await session.refresh(player)
             return player
 
+    async def remove_from_game(self, user_id: int, game_id: int) -> bool:
+        async with self.db.session as session:
+            stmt = select(Player).where(
+                Player.user_id == user_id,
+                Player.game_id == game_id,
+            )
+            result = await session.execute(stmt)
+            player = result.scalar_one_or_none()
+            if player is None:
+                return False
+            await session.delete(player)
+            await session.commit()
+            return True
+
+
+class _AchievementStatsAccessor:
+    def __init__(self, db: DatabaseAccessor):
+        self.db = db
+
+    async def get(self, user_id: int) -> AchievementStats | None:
+        async with self.db.session as session:
+            stmt = select(AchievementStats).where(AchievementStats.user_id == user_id)
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+
+    async def create(self, user_id: int) -> AchievementStats:
+        async with self.db.session as session:
+            stats = AchievementStats(user_id=user_id)
+            session.add(stats)
+            try:
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
+                stmt = select(AchievementStats).where(
+                    AchievementStats.user_id == user_id
+                )
+                result = await session.execute(stmt)
+                existing_stats = result.scalar_one_or_none()
+                if existing_stats is None:
+                    raise
+                return existing_stats
+            await session.refresh(stats)
+            return stats
+
+    async def get_or_create(self, user_id: int) -> AchievementStats:
+        stats = await self.get(user_id)
+        if stats is not None:
+            return stats
+        return await self.create(user_id)
+
+    async def save(self, stats: AchievementStats) -> AchievementStats:
+        async with self.db.session as session:
+            stats.updated_at = datetime.now(UTC)
+            session.add(stats)
+            await session.commit()
+            await session.refresh(stats)
+            return stats
+
 
 class UserAccessor:
     def __init__(self, db: DatabaseAccessor):
         self.user = _UserAccessor(db)
         self.player = _PlayerAccessor(db)
+        self.achievement = _AchievementStatsAccessor(db)

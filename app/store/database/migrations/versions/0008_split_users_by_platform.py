@@ -5,17 +5,16 @@ Revises: 0007_user_term_game_platform
 Create Date: 2026-03-16 22:30:00.000000
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import inspect
 
-
 revision: str = "0008_split_users_by_platform"
-down_revision: Union[str, Sequence[str], None] = "0007_user_term_game_platform"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0007_user_term_game_platform"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _has_column(inspector, table_name: str, column_name: str) -> bool:
@@ -23,7 +22,9 @@ def _has_column(inspector, table_name: str, column_name: str) -> bool:
     return column_name in columns
 
 
-def _has_unique_constraint(inspector, table_name: str, columns: tuple[str, ...]) -> bool:
+def _has_unique_constraint(
+    inspector, table_name: str, columns: tuple[str, ...]
+) -> bool:
     for constraint in inspector.get_unique_constraints(table_name):
         if tuple(constraint.get("column_names") or ()) == columns:
             return True
@@ -33,7 +34,9 @@ def _has_unique_constraint(inspector, table_name: str, columns: tuple[str, ...])
     return False
 
 
-def _drop_unique_by_columns(inspector, table_name: str, columns: tuple[str, ...]) -> None:
+def _drop_unique_by_columns(
+    inspector, table_name: str, columns: tuple[str, ...]
+) -> None:
     dropped_names: set[str] = set()
     for constraint in inspector.get_unique_constraints(table_name):
         name = constraint.get("name")
@@ -98,20 +101,35 @@ def downgrade() -> None:
         op.create_table(
             "user_terminals",
             sa.Column("id", sa.Integer(), primary_key=True),
-            sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
+            sa.Column(
+                "user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False
+            ),
             sa.Column("platform", sa.String(), nullable=False),
             sa.Column("external_user_id", sa.BigInteger(), nullable=False),
             sa.Column("dm_chat_id", sa.BigInteger(), nullable=True),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=True),
-            sa.UniqueConstraint("platform", "external_user_id", name="uq_user_terminals_platform_external"),
-            sa.UniqueConstraint("user_id", "platform", name="uq_user_terminals_user_platform"),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("now()"),
+                nullable=True,
+            ),
+            sa.UniqueConstraint(
+                "platform",
+                "external_user_id",
+                name="uq_user_terminals_platform_external",
+            ),
+            sa.UniqueConstraint(
+                "user_id", "platform", name="uq_user_terminals_user_platform"
+            ),
         )
 
     inspector = inspect(bind)
     if _has_column(inspector, "users", "preferred_terminal") is False:
         op.add_column(
             "users",
-            sa.Column("preferred_terminal", sa.String(), nullable=False, server_default="TG"),
+            sa.Column(
+                "preferred_terminal", sa.String(), nullable=False, server_default="TG"
+            ),
         )
 
     inspector = inspect(bind)

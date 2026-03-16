@@ -2,11 +2,11 @@ import importlib
 import inspect
 import logging
 from pathlib import Path
-from typing import List, Optional
+
 from aiohttp.web import Application
 
 from app.clients.common.handlers.base import BaseHandler
-from app.clients.common.mailbox import Update, MessagePayload
+from app.clients.common.mailbox import MessagePayload, Update
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class HandlerFactory:
     def __init__(self, app: Application):
         self.app = app
-        self._handlers: List[BaseHandler] = []
+        self._handlers: list[BaseHandler] = []
         self.discover_handlers()
 
     def add_handler(self, handler_class):
@@ -34,9 +34,14 @@ class HandlerFactory:
                     if issubclass(obj, BaseHandler) and obj is not BaseHandler:
                         self.add_handler(obj)
             except Exception as error:
-                logger.error("Ошибка при импорте/регистрации хендлера %s: %s", file.name, error, exc_info=True)
+                logger.error(
+                    "Ошибка при импорте/регистрации хендлера %s: %s",
+                    file.name,
+                    error,
+                    exc_info=True,
+                )
 
-    async def handle_update(self, update: Update) -> Optional[MessagePayload]:
+    async def handle_update(self, update: Update) -> MessagePayload | None:
         logger.info(
             "Handler search update_id=%s type=%s chat_id=%s from_user=%s",
             update.update_id,

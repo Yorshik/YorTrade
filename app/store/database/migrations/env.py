@@ -6,17 +6,21 @@ from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
+)
 sys.path.insert(0, project_root)
 
+from app.api.models import ApiAuthSession, ApiAuthUser  # noqa: F401
 from app.data.models import Asset, Phrase  # noqa: F401
 from app.market.models import Deal, Game, GameAsset, Portfolio  # noqa: F401
-from app.api.models import ApiAuthSession, ApiAuthUser  # noqa: F401
 from app.store.database.base import Base
-from app.users.models import Player, User  # noqa: F401
+from app.users.models import AchievementStats, Player, User  # noqa: F401
 
 target_metadata = Base.metadata
-db_dsn = os.getenv("DATABASE_DSN", "postgresql+asyncpg://postgres:postgres@localhost:5432/app")
+db_dsn = os.getenv(
+    "DATABASE_DSN", "postgresql+asyncpg://postgres:postgres@localhost:5432/app"
+)
 
 
 def do_run_migrations(connection):

@@ -4,8 +4,9 @@ import logging
 from datetime import UTC, datetime
 from time import monotonic
 
-from app.market.models import GameStatus
 from app.clients.common.mailbox import MessagePayload
+from app.market.models import GameStatus
+from app.utils.achievements import apply_achievement_progress
 from app.utils.events import generate_events
 from app.utils.inside_info import generate_inside_info
 from app.utils.live_updates import refresh_private_views
@@ -27,7 +28,9 @@ class GameEngine:
         self._tasks: dict[int, asyncio.Task] = {}
         self._tick_intervals: dict[int, float] = {}
 
-    async def start_game(self, game_id: int, tick_interval: float | None = None) -> None:
+    async def start_game(
+        self, game_id: int, tick_interval: float | None = None
+    ) -> None:
         task = self._tasks.get(game_id)
         if task and not task.done():
             logger.info("Game loop already running for game_id=%s", game_id)
@@ -38,7 +41,9 @@ class GameEngine:
             logger.warning("Cannot start game loop: game_id=%s not found", game_id)
             return
 
-        self._tick_intervals[game_id] = tick_interval if tick_interval is not None else self.tick_interval
+        self._tick_intervals[game_id] = (
+            tick_interval if tick_interval is not None else self.tick_interval
+        )
 
         state = await init_runtime_state(
             self.app,
@@ -95,7 +100,10 @@ class GameEngine:
         try:
             while True:
                 if not await self._is_game_active(game_id):
-                    logger.info("Game loop stopping because game is no longer active: game_id=%s", game_id)
+                    logger.info(
+                        "Game loop stopping because game is no longer active: game_id=%s",
+                        game_id,
+                    )
                     return
 
                 tick_started = monotonic()
@@ -103,7 +111,10 @@ class GameEngine:
                 if state is None:
                     game = await self.app.market.game.get_by_id(game_id)
                     if not game:
-                        logger.warning("Game loop cannot restore runtime state: game_id=%s missing", game_id)
+                        logger.warning(
+                            "Game loop cannot restore runtime state: game_id=%s missing",
+                            game_id,
+                        )
                         return
                     state = await init_runtime_state(
                         self.app,
@@ -121,15 +132,25 @@ class GameEngine:
                     return
 
                 state["tick"] += 1
-                logger.info("Game tick started for game_id=%s tick=%s", game_id, state["tick"])
+                logger.info(
+                    "Game tick started for game_id=%s tick=%s", game_id, state["tick"]
+                )
 
-                state = await self._run_stage("update_prices", update_prices(self.app, game_id, state), game_id, state["tick"])
+                state, runtime_events = await self._run_stage(
+                    "update_prices",
+                    update_prices(self.app, game_id, state),
+                    game_id,
+                    state["tick"],
+                )
                 state, event_item = await self._run_stage(
                     "generate_events",
                     generate_events(self.app, game_id, state),
                     game_id,
                     state["tick"],
                 )
+                event_items = list(runtime_events or [])
+                if event_item:
+                    event_items.append(event_item)
                 state, news_item = await self._run_stage(
                     "generate_news",
                     generate_news(self.app, game_id, state),
@@ -143,12 +164,18 @@ class GameEngine:
                     state["tick"],
                 )
                 generated = {
-                    "event": event_item,
+                    "event": event_items[0] if event_items else None,
+                    "events": event_items,
                     "news": news_item,
                     "insider": insider_item,
                 }
 
-                await self._run_stage("save_runtime_state", save_runtime_state(self.app, state), game_id, state["tick"])
+                await self._run_stage(
+                    "save_runtime_state",
+                    save_runtime_state(self.app, state),
+                    game_id,
+                    state["tick"],
+                )
                 await self._refresh_outputs(game_id, state, generated)
 
                 elapsed = monotonic() - tick_started
@@ -164,7 +191,9 @@ class GameEngine:
             logger.info("Game loop stopped for game_id=%s", game_id)
             raise
         except Exception:
-            logger.exception("Unhandled exception inside game loop for game_id=%s", game_id)
+            logger.exception(
+                "Unhandled exception inside game loop for game_id=%s", game_id
+            )
         finally:
             current_task = self._tasks.get(game_id)
             if current_task is asyncio.current_task():
@@ -185,7 +214,9 @@ class GameEngine:
         )
         return result
 
-    async def _refresh_outputs(self, game_id: int, state: dict, generated: dict | None = None) -> None:
+    async def _refresh_outputs(
+        self, game_id: int, state: dict, generated: dict | None = None
+    ) -> None:
         tick = state["tick"]
         await self._run_best_effort_stage(
             "refresh_market_message",
@@ -209,7 +240,11 @@ class GameEngine:
         timeout_seconds: float | None = None,
     ) -> None:
         started_at = monotonic()
-        timeout = timeout_seconds if timeout_seconds is not None else self.UI_REFRESH_TIMEOUT_SECONDS
+        timeout = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else self.UI_REFRESH_TIMEOUT_SECONDS
+        )
         try:
             await asyncio.wait_for(awaitable, timeout=timeout)
             elapsed = monotonic() - started_at
@@ -220,7 +255,7 @@ class GameEngine:
                 stage_name,
                 elapsed,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "Game UI stage timed out for game_id=%s tick=%s stage=%s timeout=%.1fs",
                 game_id,
@@ -257,7 +292,9 @@ class GameEngine:
         for player in players:
             user = await self.app.users.user.get_by_id(player.user_id)
             if user is not None:
-                portfolio_rows = await self.app.market.portfolio.list_by_player(player.id)
+                portfolio_rows = await self.app.market.portfolio.list_by_player(
+                    player.id
+                )
                 assets_capital = 0.0
                 for row in portfolio_rows:
                     if row.amount <= 0:
@@ -272,7 +309,8 @@ class GameEngine:
                     {
                         "player_id": player.id,
                         "user_id": user.id,
-                        "display_name": user.username or f"user_{user.platform.lower()}_{user.tg_user_id}",
+                        "display_name": user.username
+                        or f"пользователь_{user.platform.lower()}_{user.tg_user_id}",
                         "total_capital": total_capital,
                         "balance": round(float(player.balance), 2),
                         "assets_capital": round(assets_capital, 2),
@@ -283,6 +321,20 @@ class GameEngine:
                     self.app.fsm.FSM.IDLE,
                     platform=user.platform,
                 )
+
+        if player_results:
+            winner = min(
+                player_results,
+                key=lambda item: (
+                    -float(item["total_capital"]),
+                    int(item["player_id"]),
+                ),
+            )
+            await apply_achievement_progress(
+                self.app,
+                user_id=int(winner["user_id"]),
+                add={"wins_total": 1},
+            )
         game.status = GameStatus.FINISHED
         game.ended_at = datetime.now(UTC)
         await self.app.market.game.save(game)
@@ -295,24 +347,21 @@ class GameEngine:
         leaderboard = await build_leaderboard(self.app, game.id)
         leaderboard_lines = []
         for index, row in enumerate(leaderboard[:20], start=1):
-            leaderboard_lines.append(f"{index}. {row['display_name']} - {row['capital']}")
+            leaderboard_lines.append(
+                f"{index}. {row['display_name']} - {row['capital']}"
+            )
         leaderboard_text = "\n".join(leaderboard_lines) or "Лидерборд пуст."
 
         await self.app.sender.send_message(
             MessagePayload(
                 chat_id=game.chat_id,
                 target_platform=game.platform,
-                text=(
-                    "Игра завершена.\n\n"
-                    "Итоговый лидерборд:\n"
-                    f"{leaderboard_text}"
-                ),
+                text=(f"Игра завершена.\n\nИтоговый лидерборд:\n{leaderboard_text}"),
             )
         )
 
         rank_by_player_id = {
-            row["player_id"]: index
-            for index, row in enumerate(leaderboard, start=1)
+            row["player_id"]: index for index, row in enumerate(leaderboard, start=1)
         }
         for result in player_results:
             user = await self.app.users.user.get_by_id(result["user_id"])

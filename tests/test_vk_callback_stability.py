@@ -18,7 +18,10 @@ def test_private_handler_prefers_stored_private_message_id(monkeypatch) -> None:
     app = SimpleNamespace(
         fsm=SimpleNamespace(
             get_state=AsyncMock(
-                return_value=("playing_main", {"private_message_id": 123, "screen": "main"})
+                return_value=(
+                    "playing_main",
+                    {"private_message_id": 123, "screen": "main"},
+                )
             )
         ),
         sender=SimpleNamespace(answer_callback_query=AsyncMock()),
@@ -32,7 +35,9 @@ def test_private_handler_prefers_stored_private_message_id(monkeypatch) -> None:
         callback_query=SimpleNamespace(
             id="cb1",
             data="private:main",
-            message=SimpleNamespace(message_id=999, chat=SimpleNamespace(type="private")),
+            message=SimpleNamespace(
+                message_id=999, chat=SimpleNamespace(type="private")
+            ),
         ),
     )
 
@@ -66,7 +71,9 @@ def test_leaderboard_handler_keeps_existing_market_message_id(monkeypatch) -> No
 
     app = SimpleNamespace(
         market=SimpleNamespace(
-            game=SimpleNamespace(get_by_chat_id=AsyncMock(return_value=SimpleNamespace(id=9)))
+            game=SimpleNamespace(
+                get_by_chat_id=AsyncMock(return_value=SimpleNamespace(id=9))
+            )
         ),
         sender=SimpleNamespace(answer_callback_query=AsyncMock()),
     )
@@ -93,7 +100,11 @@ def test_leaderboard_handler_keeps_existing_market_message_id(monkeypatch) -> No
 def test_callback_sanity_skips_vk_message_id_mismatch() -> None:
     middleware = CallbackSanityMiddleware()
     app = SimpleNamespace(
-        fsm=SimpleNamespace(get_state=AsyncMock(return_value=("playing_main", {"private_message_id": 10}))),
+        fsm=SimpleNamespace(
+            get_state=AsyncMock(
+                return_value=("playing_main", {"private_message_id": 10})
+            )
+        ),
         sender=SimpleNamespace(answer_callback_query=AsyncMock()),
     )
     update = SimpleNamespace(

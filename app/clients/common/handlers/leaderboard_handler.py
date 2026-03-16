@@ -1,8 +1,12 @@
-from typing import Optional
-
 from app.clients.common.handlers.base import BaseHandler
 from app.clients.common.mailbox import MessagePayload, MessageType, Update
-from app.utils.render import GROUP_VIEW_KEY, GROUP_VIEW_LEADERBOARD, GROUP_VIEW_MAIN, GROUP_VIEW_MARKET, refresh_market_message
+from app.utils.render import (
+    GROUP_VIEW_KEY,
+    GROUP_VIEW_LEADERBOARD,
+    GROUP_VIEW_MAIN,
+    GROUP_VIEW_MARKET,
+    refresh_market_message,
+)
 from app.utils.runtime import load_runtime_state, save_runtime_state
 from app.utils.trading import TradeError, build_leaderboard, get_active_player_context
 
@@ -22,12 +26,16 @@ class LeaderboardHandler(BaseHandler):
             return False
         if update.type == MessageType.CALLBACK_QUERY:
             return update.callback_query.data in self._GROUP_VIEW_CALLBACKS
-        if update.type == MessageType.TEXT and update.message and update.message.chat.type == "private":
+        if (
+            update.type == MessageType.TEXT
+            and update.message
+            and update.message.chat.type == "private"
+        ):
             command = self.cut_prefix(update.text)
             return command == "leaderboard"
         return False
 
-    async def handle(self, update: Update) -> Optional[MessagePayload]:
+    async def handle(self, update: Update) -> MessagePayload | None:
         if update.type == MessageType.CALLBACK_QUERY:
             game = await self.app.market.game.get_by_chat_id(
                 update.chat_id,
@@ -50,11 +58,17 @@ class LeaderboardHandler(BaseHandler):
                 )
                 return None
 
-            view = self._GROUP_VIEW_CALLBACKS.get(update.callback_query.data, GROUP_VIEW_MAIN)
+            view = self._GROUP_VIEW_CALLBACKS.get(
+                update.callback_query.data, GROUP_VIEW_MAIN
+            )
             runtime_state[GROUP_VIEW_KEY] = view
             runtime_state["market_message_pending"] = False
             runtime_state["market_message_pending_since"] = None
-            callback_message_id = update.callback_query.message.message_id if update.callback_query.message else None
+            callback_message_id = (
+                update.callback_query.message.message_id
+                if update.callback_query.message
+                else None
+            )
             if callback_message_id and runtime_state.get("market_message_id") is None:
                 runtime_state["market_message_id"] = callback_message_id
             await save_runtime_state(self.app, runtime_state)
@@ -62,7 +76,9 @@ class LeaderboardHandler(BaseHandler):
                 callback_query_id=update.callback_query.id,
                 text="Обновляю сообщение.",
             )
-            await refresh_market_message(self.app, game.id, runtime_state, generated=None)
+            await refresh_market_message(
+                self.app, game.id, runtime_state, generated=None
+            )
             return None
         else:
             source_platform = (update.source_platform or "TG").upper()
@@ -77,7 +93,9 @@ class LeaderboardHandler(BaseHandler):
             leaderboard = await build_leaderboard(self.app, game.id)
             runtime_state = await load_runtime_state(self.app, game.id)
             current_tick = int((runtime_state or {}).get("tick", 0))
-            is_finished = bool(runtime_state and runtime_state.get("status") == "finished")
+            is_finished = bool(
+                runtime_state and runtime_state.get("status") == "finished"
+            )
             players = await self.app.users.player.list_by_game(game.id)
             players_map = {player.id: player for player in players}
 
@@ -96,15 +114,17 @@ class LeaderboardHandler(BaseHandler):
                 else:
                     terminal_label = user.platform
             if player is None:
-                status = "passive"
+                status = "пассивен"
             elif is_finished:
-                status = "finished"
+                status = "завершил"
             elif not player.is_active:
-                status = "left"
-            elif ((runtime_state or {}).get("last_action_tick") or {}).get(str(player.id)) == current_tick - 1:
-                status = "active"
+                status = "вышел"
+            elif ((runtime_state or {}).get("last_action_tick") or {}).get(
+                str(player.id)
+            ) == current_tick - 1:
+                status = "активен"
             else:
-                status = "passive"
+                status = "пассивен"
             lines.append(
                 f"{index}. {row['display_name']} ({float(row['capital']):.2f}$) — {terminal_label} — {status}"
             )

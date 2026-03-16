@@ -1,7 +1,9 @@
 import random
 
 
-async def generate_inside_info(app, game_id: int, state: dict) -> tuple[dict, dict | None]:
+async def generate_inside_info(
+    app, game_id: int, state: dict
+) -> tuple[dict, dict | None]:
     game = await app.market.game.get_by_id(game_id)
     settings = (game.settings or {}) if game else {}
     insider_chance = float(settings.get("insider_chance_per_player_per_tick", 0.25))

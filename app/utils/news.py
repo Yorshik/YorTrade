@@ -19,7 +19,9 @@ async def _pick_asset_phrase(app, asset_id: int, phrase_type: PhraseType) -> str
     return random.choice(phrases).phrase
 
 
-async def generate_news(app, game_id: int, state: RuntimeState) -> tuple[RuntimeState, str | None]:
+async def generate_news(
+    app, game_id: int, state: RuntimeState
+) -> tuple[RuntimeState, str | None]:
     last_news = state.setdefault("last_news", [])
     game = await app.market.game.get_by_id(game_id)
     settings = (game.settings or {}) if game else {}

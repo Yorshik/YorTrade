@@ -17,7 +17,10 @@ class Config(BaseSettings):
 
     RABBIT_DSN: str = Field("amqp://guest:guest@localhost/", alias="RABBIT_DSN")
     REDIS_DSN: str = Field("redis://localhost:6479/0", alias="REDIS_DSN")
-    DATABASE_DSN: str = Field("postgresql+asyncpg://postgres:postgres@localhost:5432/app", alias="DATABASE_DSN")
+    DATABASE_DSN: str = Field(
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/app",
+        alias="DATABASE_DSN",
+    )
     PREFIX: str = Field("/", alias="PREFIX")
     TG_BOT_USERNAME: str = Field("", alias="TG_BOT_USERNAME")
     MIN_PLAYERS: int = Field(1, alias="MIN_PLAYERS", ge=1)

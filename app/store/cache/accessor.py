@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Optional, Any
+from typing import Any
+
 import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 class RedisAccessor:
     def __init__(self, dsn: str):
         self.dsn = dsn
-        self.redis: Optional[redis.Redis] = None
+        self.redis: redis.Redis | None = None
 
     async def connect(self):
         try:
@@ -25,17 +26,19 @@ class RedisAccessor:
             await self.redis.close()
             logger.info("Соединение с Redis закрыто")
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         if not self.redis:
             return None
         return await self.redis.get(key)
 
-    async def set(self, key: str, value: Any, expires_in: Optional[int] = None):
+    async def set(self, key: str, value: Any, expires_in: int | None = None):
         if not self.redis:
             return
         await self.redis.set(key, value, ex=expires_in)
 
-    async def set_if_absent(self, key: str, value: Any, expires_in: Optional[int] = None) -> bool:
+    async def set_if_absent(
+        self, key: str, value: Any, expires_in: int | None = None
+    ) -> bool:
         if not self.redis:
             return False
         return bool(await self.redis.set(key, value, ex=expires_in, nx=True))

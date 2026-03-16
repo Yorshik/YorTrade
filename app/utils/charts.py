@@ -49,12 +49,16 @@ def generate_private_main_chart(assets_list: list[dict], tick_seconds: int) -> s
         x_axis = _build_x_axis(len(history), tick_seconds)
         name = asset["name"]
         label = name[:13] + "…" if len(name) > 14 else name
-        ax.plot(x_axis, history, color=colors[i % len(colors)], linewidth=2.0, label=label)
+        ax.plot(
+            x_axis, history, color=colors[i % len(colors)], linewidth=2.0, label=label
+        )
 
     if has_data:
         ax.legend(loc="best", fontsize=7, ncol=2)
     else:
-        ax.text(0.5, 0.5, "Нет данных", ha="center", va="center", transform=ax.transAxes)
+        ax.text(
+            0.5, 0.5, "Нет данных", ha="center", va="center", transform=ax.transAxes
+        )
 
     ax.set_xlabel("Секунды", fontsize=8)
     ax.set_ylabel("Цена", fontsize=8)
@@ -84,7 +88,14 @@ def generate_market_overview_chart(state: dict, tick_seconds: int) -> str:
         ax.plot(x_axis, averages, linewidth=2.4, color="#1d4ed8")
         ax.fill_between(x_axis, averages, color="#93c5fd", alpha=0.3)
     else:
-        ax.text(0.5, 0.5, "Недостаточно данных для графика", ha="center", va="center", transform=ax.transAxes)
+        ax.text(
+            0.5,
+            0.5,
+            "Недостаточно данных для графика",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
 
     fig.tight_layout()
     return _figure_to_base64(fig)

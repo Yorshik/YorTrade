@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Tuple, Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.store.fsm.states import FSM
 from app.utils.log_context import get_update_context
@@ -20,12 +20,18 @@ class FSMAccessor:
 
     def _resolve_actor_key(self, user_id: int, platform: str | None = None) -> str:
         context = get_update_context() or {}
-        if platform is None and context.get("user_id") == user_id and context.get("actor_key"):
+        if (
+            platform is None
+            and context.get("user_id") == user_id
+            and context.get("actor_key")
+        ):
             return str(context["actor_key"])
         actor_key = build_actor_key(platform or context.get("platform"), user_id)
         return actor_key or f"TG:{user_id}"
 
-    async def get_state(self, user_id: int, platform: str | None = None) -> Optional[Tuple[str, Dict[str, Any]]]:
+    async def get_state(
+        self, user_id: int, platform: str | None = None
+    ) -> tuple[str, dict[str, Any]] | None:
         actor_key = self._resolve_actor_key(user_id, platform)
         raw = await self.app.redis.get(self._redis_key(actor_key))
         if raw:
@@ -38,7 +44,9 @@ class FSMAccessor:
 
         parsed_actor = parse_actor_key(actor_key)
         if parsed_actor:
-            raw_data = await self.app.users.user.get_fsm_state(parsed_actor[0], parsed_actor[1])
+            raw_data = await self.app.users.user.get_fsm_state(
+                parsed_actor[0], parsed_actor[1]
+            )
         else:
             raw_data = None
         if raw_data:
@@ -46,7 +54,13 @@ class FSMAccessor:
             return data.get("state"), data.get("data", {})
         return None
 
-    async def set_state(self, user_id: int, state: str, data: Optional[Dict[str, Any]] = None, platform: str | None = None):
+    async def set_state(
+        self,
+        user_id: int,
+        state: str,
+        data: dict[str, Any] | None = None,
+        platform: str | None = None,
+    ):
         if data is None:
             data = {}
         payload = {"state": state, "data": data}
@@ -55,11 +69,15 @@ class FSMAccessor:
 
         parsed_actor = parse_actor_key(actor_key)
         if parsed_actor:
-            await self.app.users.user.set_fsm_state(parsed_actor[0], parsed_actor[1], payload)
+            await self.app.users.user.set_fsm_state(
+                parsed_actor[0], parsed_actor[1], payload
+            )
 
     async def clear_state(self, user_id: int, platform: str | None = None):
         actor_key = self._resolve_actor_key(user_id, platform)
         await self.app.redis.delete(self._redis_key(actor_key))
         parsed_actor = parse_actor_key(actor_key)
         if parsed_actor:
-            await self.app.users.user.set_fsm_state(parsed_actor[0], parsed_actor[1], None)
+            await self.app.users.user.set_fsm_state(
+                parsed_actor[0], parsed_actor[1], None
+            )

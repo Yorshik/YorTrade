@@ -33,7 +33,9 @@ def _build_update(text: str) -> Update:
 def _build_handler() -> GameSettingsHandler:
     fsm = SimpleNamespace(
         FSM=SimpleNamespace(GAME_SETTINGS="game_settings"),
-        get_state=AsyncMock(return_value=("game_settings", {"pending_setting": "tick_seconds"})),
+        get_state=AsyncMock(
+            return_value=("game_settings", {"pending_setting": "tick_seconds"})
+        ),
     )
     app = SimpleNamespace(
         config=SimpleNamespace(PREFIX="/"),

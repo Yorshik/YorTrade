@@ -25,9 +25,92 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:asyncpg.*:",
+    "ignore::DeprecationWarning:pytest_asyncio.plugin.*:",
+    "ignore::DeprecationWarning",
+]
 
 [tool.ruff]
 target-version = "py314"
 
 [tool.ruff.lint]
-per-file-ignores = { "app/store/database/migrations/env.py" = ["E402"] }
+extend-select = ["I", "INP", "PERF", "PL", "PT", "RUF", "SIM", "UP"]
+ignore = [
+    "PLR2004", # https://docs.astral.sh/ruff/rules/magic-value-comparison – много ложных срабатываний
+    "PLR0904", # https://docs.astral.sh/ruff/rules/too-many-public-methods – неактуально для нашего аксессорного подхода
+    "PLR0917", # https://docs.astral.sh/ruff/rules/too-many-positional – может оказатся слишком жесткис
+    "PLR0911", # https://docs.astral.sh/ruff/rules/too-many-return-statements – может быть слишком жёстким для хендлеров
+    "PLR0912", # https://docs.astral.sh/ruff/rules/too-many-branches – может быть слишком жёстким для хендлеров
+    "PLR0915", # https://docs.astral.sh/ruff/rules/too-many-statements – может быть слишком жёстким для хендлеров
+    "PLR6201", # https://docs.astral.sh/ruff/rules/literal-membership – не всегда имеет смысл использовать set
+    "PLR6301", # https://docs.astral.sh/ruff/rules/no-self-use – неактуально для нашего аксессорного подхода
+    "PLW1514", # https://docs.astral.sh/ruff/rules/unspecified-encoding – неактуально для наших проектов
+    "PLW1641", # https://docs.astral.sh/ruff/rules/eq-without-hash – иногда нужен eq без hash
+    "PLR0913", # https://docs.astral.sh/ruff/rules/too-many-arguments – может оказаться слишком жестко для ребят
+    "PLR1714", # https://docs.astral.sh/ruff/rules/repeated-equality-comparison – бывают неадекватные срабатывания
+    "PERF203", # https://docs.astral.sh/ruff/rules/try-except-in-loop – я бы включил, но сами таким грешим, не думаю, что крит
+    # нигде не придерживались такого подхода
+    "PT007", # https://docs.astral.sh/ruff/rules/pytest-parametrize-values-wrong-type – не считаю критичным
+    # выключил, чтобы продвигать русский язык
+    "RUF001", # https://docs.astral.sh/ruff/rules/ambiguous-unicode-character-string
+    "RUF002", # https://docs.astral.sh/ruff/rules/ambiguous-unicode-character-docstring
+    "RUF003", # https://docs.astral.sh/ruff/rules/ambiguous-unicode-character-comment
+    # не считаю критичным
+    "RUF012", # https://docs.astral.sh/ruff/rules/mutable-class-default
+    "RUF021", # https://docs.astral.sh/ruff/rules/parenthesize-chained-operators
+    "SIM105", # https://docs.astral.sh/ruff/rules/suppressible-exception – я бы включил, но мало кто знает про это и пользуется
+    "SIM108", # https://docs.astral.sh/ruff/rules/if-else-block-instead-of-if-exp – много ложных срабатываний
+    "SIM117", # https://docs.astral.sh/ruff/rules/multiple-with-statements – часто становится хуже
+    # не считаю критичным
+    "UP012", # https://docs.astral.sh/ruff/rules/unnecessary-encode-utf8
+    "UP015", # https://docs.astral.sh/ruff/rules/redundant-open-modes
+    "UP032", # https://docs.astral.sh/ruff/rules/f-string – иногда уместнее использовать str.format
+    # [!] При использовании Ruff в качестве форматтера, рекомендуется избегать следующих правил:
+    # (https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules)
+    "W191",
+    "E111",
+    "E114",
+    "E117",
+    "D206",
+    "D300",
+    "Q000",
+    "Q001",
+    "Q002",
+    "Q003",
+    "COM812",
+    "COM819",
+    "ISC001",
+    "ISC002",
+    "INP001", # https://docs.astral.sh/ruff/rules/implicit-namespace-package – в проекте используются namespace-пакеты
+]
+
+[tool.ruff.lint.extend-per-file-ignores]
+# PLC0415 https://docs.astral.sh/ruff/rules/import-outside-top-level – мы сами такое используем в некоторых местах
+# F403 https://docs.astral.sh/ruff/rules/undefined-local-with-import-star – wildcards в init.py и тестах терпимо
+# F405 https://docs.astral.sh/ruff/rules/undefined-local-with-import-star-usage – wildcards в тестах терпимо
+# SIM300 https://docs.astral.sh/ruff/rules/yoda-conditions – разрешаем йоду для ассертов
+"app/store/database/migrations/env.py" = ["E402"]
+"__init__.py" = ["F403", "PLC0415"]
+"routes.py" = ["PLC0415"]
+"urls.py" = ["PLC0415"]
+"store.py" = ["PLC0415"]
+"app/web/application.py" = ["PLC0415"]
+"tests/*.py" = ["SIM300", "F403", "F405", "INP001"]
+
+[tool.ruff.lint.pydocstyle]
+# Требуем google-docstring, т.к. на большинстве проектах придерживаемся этого формата
+convention = "google"
+
+[tool.ruff.lint.isort]
+# Объекдиняем импорты из одного пакета
+combine-as-imports = true
+
+[tool.ruff.lint.flake8-unused-arguments]
+# Считаем терпимым не использовать *args, **kwargs
+ignore-variadic-names = true
+
+[tool.ruff.lint.flake8-pytest-style]
+# Делаем единый стиль скобок в тестах
+fixture-parentheses = false
+mark-parentheses = false

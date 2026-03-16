@@ -2,7 +2,11 @@ from asyncio import Lock
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.clients.common.mailbox import InlineKeyboardButton, InlineKeyboardMarkup, MessagePayload
+from app.clients.common.mailbox import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    MessagePayload,
+)
 from app.utils.charts import generate_market_overview_chart
 from app.utils.runtime import RuntimeState, save_runtime_state
 from app.utils.trading import build_leaderboard
@@ -38,26 +42,31 @@ def build_generated_message(generated: dict[str, Any] | None) -> str | None:
     if not generated:
         return None
     lines: list[str] = []
-    event = generated.get("event")
+    event_items = generated.get("events") or []
+    if not event_items and generated.get("event"):
+        event_items = [generated["event"]]
     news = generated.get("news")
     insider = generated.get("insider")
 
-    if event:
-        lines.extend(
-            [
-                "Event:",
-                (
+    if event_items:
+        lines.append("Ивент:")
+        for event in event_items:
+            text = event.get("text")
+            if text:
+                lines.append(str(text))
+            elif event.get("asset_name") is not None and event.get("delta") is not None:
+                lines.append(
                     f"{event['asset_name']} {float(event['delta']):+.2f} "
-                    f"(ticks left: {int(event.get('ticks_left', 0))})"
-                ),
-            ]
-        )
+                    f"(осталось тиков: {int(event.get('ticks_left', 0))})"
+                )
+            elif event.get("asset_name") is not None:
+                lines.append(str(event["asset_name"]))
     if news:
         if lines:
             lines.append("")
         lines.extend(
             [
-                "News:",
+                "Новости:",
                 str(news),
             ]
         )
@@ -66,8 +75,8 @@ def build_generated_message(generated: dict[str, Any] | None) -> str | None:
             lines.append("")
         lines.extend(
             [
-                "Insider:",
-                f"{insider['asset_name']} forecast {float(insider['forecast_percent']):+.1f}%",
+                "Инсайд:",
+                f"{insider['asset_name']} прогноз {float(insider['forecast_percent']):+.1f}%",
             ]
         )
     if not lines:
@@ -78,7 +87,9 @@ def build_generated_message(generated: dict[str, Any] | None) -> str | None:
 def _format_seconds_left(ends_at: str | None) -> str:
     if not ends_at:
         return "--:--"
-    seconds_left = max(0, int((datetime.fromisoformat(ends_at) - datetime.now(UTC)).total_seconds()))
+    seconds_left = max(
+        0, int((datetime.fromisoformat(ends_at) - datetime.now(UTC)).total_seconds())
+    )
     minutes, seconds = divmod(seconds_left, 60)
     return f"{minutes:02d}:{seconds:02d}"
 
@@ -102,7 +113,7 @@ def _build_open_private_buttons(app, platform: str) -> list[InlineKeyboardButton
         if group_id > 0:
             buttons.append(
                 InlineKeyboardButton(
-                    text="Open VK private chat",
+                    text="Открыть личку VK",
                     url=f"https://vk.com/im?sel=-{group_id}",
                 )
             )
@@ -111,24 +122,28 @@ def _build_open_private_buttons(app, platform: str) -> list[InlineKeyboardButton
         if username:
             buttons.append(
                 InlineKeyboardButton(
-                    text="Open TG private chat",
+                    text="Открыть личку TG",
                     url=f"https://t.me/{username}",
                 )
             )
     if not buttons:
-        buttons.append(InlineKeyboardButton(text="Open private chat with the bot", callback_data="noop"))
+        buttons.append(
+            InlineKeyboardButton(
+                text="Откройте личный чат с ботом", callback_data="noop"
+            )
+        )
     return buttons
 
 
 def _build_group_status(player, state: RuntimeState) -> str:
     if state.get("status") == "finished":
-        return "finished"
+        return "завершил"
     if not player.is_active:
-        return "left"
+        return "вышел"
     last_action_tick = (state.get("last_action_tick") or {}).get(str(player.id))
     if last_action_tick == int(state.get("tick", 0)) - 1:
-        return "active"
-    return "passive"
+        return "активен"
+    return "пассивен"
 
 
 def _truncate_caption(text: str) -> str:
@@ -148,7 +163,7 @@ def _is_stale_pending(timestamp_raw: str | None) -> bool:
 
 
 def _build_player_line(row: dict, player, user, state: RuntimeState) -> str:
-    status = _build_group_status(player, state) if player is not None else "passive"
+    status = _build_group_status(player, state) if player is not None else "пассивен"
     if user is None or not user.dm_chat_id:
         terminal_label = "не подключен"
     else:
@@ -156,7 +171,9 @@ def _build_player_line(row: dict, player, user, state: RuntimeState) -> str:
     return f"{row['display_name']} ({float(row['capital']):.2f}$) - {terminal_label} - {status}"
 
 
-def _asset_bought_total(asset_runtime: dict, game_assets_map: dict[int, object]) -> tuple[int, int]:
+def _asset_bought_total(
+    asset_runtime: dict, game_assets_map: dict[int, object]
+) -> tuple[int, int]:
     asset_row = game_assets_map.get(int(asset_runtime["asset_id"]))
     if asset_row is None:
         return 0, 0
@@ -202,7 +219,13 @@ def _build_group_keyboard(
         if top_row:
             rows.append(top_row)
     else:
-        rows.append([InlineKeyboardButton(text="Назад к рынку", callback_data="group:view_main")])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Назад к рынку", callback_data="group:view_main"
+                )
+            ]
+        )
 
     rows.append(_build_open_private_buttons(app, platform))
     rows.append([InlineKeyboardButton(text="Закончить игру", callback_data="end_game")])
@@ -218,7 +241,7 @@ async def _build_group_caption_and_keyboard(
     game = await app.market.game.get_by_id(game_id)
     tick_seconds = int((game.settings or {}).get("tick_seconds", 10)) if game else 10
     chart_content_b64 = generate_market_overview_chart(state, tick_seconds)
-    chat_title = state.get("chat_title") or "Unknown chat"
+    chat_title = state.get("chat_title") or "Неизвестный чат"
     assets = sorted(state.get("assets", {}).values(), key=lambda asset: asset["name"])
     players = await app.users.player.list_by_game(game_id)
     players_map = {player.id: player for player in players}
@@ -228,29 +251,36 @@ async def _build_group_caption_and_keyboard(
     game_assets_map = {int(row.asset_id): row for row in game_assets}
 
     lines = [
-        f'{chat_title} ({state["chat_id"]})',
+        f"{chat_title} ({state['chat_id']})",
         f"Тик {state['tick']} | Осталось времени: {_format_seconds_left(state.get('ends_at'))}",
     ]
 
     if view in {GROUP_VIEW_MAIN, GROUP_VIEW_LEADERBOARD}:
-        show_inline_players = view == GROUP_VIEW_MAIN and len(players) <= MAX_GROUP_INLINE_PLAYERS
+        show_inline_players = (
+            view == GROUP_VIEW_MAIN and len(players) <= MAX_GROUP_INLINE_PLAYERS
+        )
         show_all_players = view == GROUP_VIEW_LEADERBOARD
         if show_inline_players or show_all_players:
             lines.append("")
-            lines.append("Players:")
+            lines.append("Игроки:")
             for row in leaderboard:
                 player = players_map.get(row["player_id"])
-                user = await app.users.user.get_by_id(player.user_id) if player is not None else None
+                user = (
+                    await app.users.user.get_by_id(player.user_id)
+                    if player is not None
+                    else None
+                )
                 lines.append(_build_player_line(row, player, user, state))
 
     if view in {GROUP_VIEW_MAIN, GROUP_VIEW_MARKET}:
-        show_inline_assets = view == GROUP_VIEW_MAIN and len(assets) <= MAX_GROUP_INLINE_ASSETS
+        show_inline_assets = (
+            view == GROUP_VIEW_MAIN and len(assets) <= MAX_GROUP_INLINE_ASSETS
+        )
         show_all_assets = view == GROUP_VIEW_MARKET
         if show_inline_assets or show_all_assets:
             lines.append("")
             lines.append("Компании:")
-            for asset in assets:
-                lines.append(_build_asset_line(asset, game_assets_map))
+            lines.extend(_build_asset_line(asset, game_assets_map) for asset in assets)
 
     keyboard = _build_group_keyboard(
         app,
@@ -279,7 +309,9 @@ async def refresh_market_message(
             await save_runtime_state(app, state)
         target_platform = str(state.get("platform") or "TG").upper()
 
-        caption, keyboard, chart_content_b64 = await _build_group_caption_and_keyboard(app, game_id, state)
+        caption, keyboard, chart_content_b64 = await _build_group_caption_and_keyboard(
+            app, game_id, state
+        )
         generated_message = build_generated_message(generated)
         current_message_id = state.get("market_message_id")
 

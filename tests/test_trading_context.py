@@ -11,7 +11,9 @@ from app.utils import trading
 def test_get_active_player_context_respects_platform() -> None:
     user = SimpleNamespace(id=10)
     player = SimpleNamespace(id=28, user_id=10, game_id=19)
-    wrong_platform_game = SimpleNamespace(id=19, status=GameStatus.ACTIVE, platform="VK")
+    wrong_platform_game = SimpleNamespace(
+        id=19, status=GameStatus.ACTIVE, platform="VK"
+    )
 
     app = SimpleNamespace(
         users=SimpleNamespace(
@@ -29,18 +31,22 @@ def test_get_active_player_context_respects_platform() -> None:
         ),
     )
 
-    with pytest.raises(trading.TradeError, match="Активная игра не найдена."):
+    with pytest.raises(trading.TradeError, match=r"Активная игра не найдена\."):
         asyncio.run(trading.get_active_player_context(app, 737677917, platform="TG"))
 
 
-def test_get_active_player_context_returns_state_for_matching_platform(monkeypatch) -> None:
+def test_get_active_player_context_returns_state_for_matching_platform(
+    monkeypatch,
+) -> None:
     user = SimpleNamespace(id=10)
     player = SimpleNamespace(id=28, user_id=10, game_id=19)
     game = SimpleNamespace(id=19, status=GameStatus.ACTIVE, platform="TG")
     runtime_state = {"game_id": 19, "tick": 3}
 
     monkeypatch.setattr(trading, "get_update_context", lambda: None)
-    monkeypatch.setattr(trading, "load_runtime_state", AsyncMock(return_value=runtime_state))
+    monkeypatch.setattr(
+        trading, "load_runtime_state", AsyncMock(return_value=runtime_state)
+    )
 
     app = SimpleNamespace(
         users=SimpleNamespace(

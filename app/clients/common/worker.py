@@ -1,8 +1,8 @@
 import asyncio
+import contextlib
 import json
 import logging
 from time import monotonic
-from typing import Optional, Type
 
 from aio_pika.abc import AbstractIncomingMessage
 
@@ -21,14 +21,14 @@ class Worker:
         *,
         updates_queue_name: str,
         sender_queue_name: str,
-        update_model: Type[CommonUpdate],
+        update_model: type[CommonUpdate],
         source_platform: str,
     ):
         self.app = app
         self.rabbitmq: RabbitMQAccessor = app.rabbitmq
         self.handler_factory = app.handler_factory
         self.middleware_factory = app.middleware_factory
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self.updates_queue_name = updates_queue_name
         self.sender_queue_name = sender_queue_name
         self.update_model = update_model
@@ -43,7 +43,9 @@ class Worker:
                 if update.source_platform is None:
                     update.source_platform = self.source_platform
                 if update.actor_key is None and update.from_user is not None:
-                    update.actor_key = build_actor_key(update.source_platform, update.from_user.id)
+                    update.actor_key = build_actor_key(
+                        update.source_platform, update.from_user.id
+                    )
                 context_token = set_update_context(
                     update_id=update.update_id,
                     user_id=update.from_user.id if update.from_user else None,
@@ -79,7 +81,10 @@ class Worker:
                         response_payload.chat_id,
                         response_payload.message_id,
                         len(response_payload.text or ""),
-                        bool(response_payload.photo_content_b64 or response_payload.photo_path),
+                        bool(
+                            response_payload.photo_content_b64
+                            or response_payload.photo_path
+                        ),
                         response_payload.source_update_id,
                         response_payload.source_user_id,
                     )
@@ -93,7 +98,9 @@ class Worker:
                         update.update_id,
                     )
             except Exception as error:
-                logger.error("Worker failed to process message: %s", error, exc_info=True)
+                logger.error(
+                    "Worker failed to process message: %s", error, exc_info=True
+                )
             finally:
                 if context_token is not None:
                     reset_update_context(context_token)
@@ -130,8 +137,6 @@ class Worker:
     async def stop(self):
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             logger.info("Worker stopped.")

@@ -1,12 +1,13 @@
 import asyncio
 import base64
-import aiohttp
+import contextlib
 import json
 import logging
 from time import monotonic
-from typing import Optional
 
+import aiohttp
 from aio_pika.abc import AbstractIncomingMessage
+
 from app.clients.tg.mailbox import MessagePayload, PayloadAction
 from app.store.queue.accessor import RabbitMQAccessor
 from app.utils.log_context import get_update_context
@@ -34,7 +35,7 @@ class Sender:
         self.session: aiohttp.ClientSession = app.session
         self.rabbitmq: RabbitMQAccessor = app.rabbitmq
         self.api_url = f"{app.config.TG_API_URL}/bot{app.config.TG_TOKEN}"
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self.queue_name = "telegram_sender_queue"
 
     async def _requeue_message(self, payload: MessagePayload):
@@ -49,9 +50,11 @@ class Sender:
 
     async def _process_message(self, message: AbstractIncomingMessage):
         async with message.process():
-            payload = MessagePayload.model_validate(json.loads(message.body.decode('utf-8')))
+            payload = MessagePayload.model_validate(
+                json.loads(message.body.decode("utf-8"))
+            )
             logger.info("Sender dequeue %s", self._payload_brief(payload))
-            
+
             try:
                 send_started_at = monotonic()
                 result = await self._dispatch_payload(payload)
@@ -66,7 +69,12 @@ class Sender:
             except RateLimitError:
                 await self._requeue_message(payload)
             except Exception as e:
-                logger.error("Sender unhandled error for %s: %s", self._payload_brief(payload), e, exc_info=True)
+                logger.error(
+                    "Sender unhandled error for %s: %s",
+                    self._payload_brief(payload),
+                    e,
+                    exc_info=True,
+                )
 
     async def _consume(self):
         sender_queue = await self.rabbitmq.get_queue(self.queue_name)
@@ -85,18 +93,18 @@ class Sender:
     async def stop(self):
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             logger.info("Сендер остановлен.")
 
-    async def _dispatch_payload(self, payload: MessagePayload) -> Optional[int]:
+    async def _dispatch_payload(self, payload: MessagePayload) -> int | None:
         if payload.action == PayloadAction.DELETE:
             await self._delete_message(payload.chat_id, payload.message_id)
             return None
         if payload.action == PayloadAction.ANSWER_CALLBACK:
-            await self._answer_callback_query(payload.callback_query_id, payload.text or "", payload.show_alert)
+            await self._answer_callback_query(
+                payload.callback_query_id, payload.text or "", payload.show_alert
+            )
             return None
         if payload.action == PayloadAction.EDIT_MEDIA:
             return await self._edit_message_media(payload)
@@ -106,7 +114,7 @@ class Sender:
             return await self._edit_message(payload)
         return await self._send_message(payload)
 
-    async def _send_message(self, payload: MessagePayload) -> Optional[int]:
+    async def _send_message(self, payload: MessagePayload) -> int | None:
         if payload.photo_content_b64 or payload.photo_path:
             return await self._send_photo(payload)
         elif payload.text:
@@ -118,12 +126,16 @@ class Sender:
     async def send_message(self, payload: MessagePayload) -> None:
         self._attach_context_metadata(payload)
         payload.action = PayloadAction.SEND
-        await self.rabbitmq.publish(self.queue_name, payload.model_dump(mode="json", exclude_none=True))
+        await self.rabbitmq.publish(
+            self.queue_name, payload.model_dump(mode="json", exclude_none=True)
+        )
 
     async def edit_message(self, payload: MessagePayload) -> None:
         self._attach_context_metadata(payload)
         payload.action = PayloadAction.EDIT
-        await self.rabbitmq.publish(self.queue_name, payload.model_dump(mode="json", exclude_none=True))
+        await self.rabbitmq.publish(
+            self.queue_name, payload.model_dump(mode="json", exclude_none=True)
+        )
 
     async def delete_message(self, chat_id: int, message_id: int) -> None:
         payload = MessagePayload(
@@ -137,7 +149,9 @@ class Sender:
             payload.model_dump(mode="json", exclude_none=True),
         )
 
-    async def answer_callback_query(self, callback_query_id: str, text: str, show_alert: bool = False) -> None:
+    async def answer_callback_query(
+        self, callback_query_id: str, text: str, show_alert: bool = False
+    ) -> None:
         payload = MessagePayload(
             chat_id=0,
             action=PayloadAction.ANSWER_CALLBACK,
@@ -151,12 +165,14 @@ class Sender:
             payload.model_dump(mode="json", exclude_none=True),
         )
 
-    async def _send_text(self, payload: MessagePayload) -> Optional[int]:
+    async def _send_text(self, payload: MessagePayload) -> int | None:
         url = f"{self.api_url}/sendMessage"
         json_data = {"chat_id": payload.chat_id, "text": payload.text}
         if payload.keyboard:
-            json_data["reply_markup"] = payload.keyboard.model_dump(mode="json", exclude_none=True)
-        
+            json_data["reply_markup"] = payload.keyboard.model_dump(
+                mode="json", exclude_none=True
+            )
+
         logger.info(
             "TG sendMessage chat_id=%s text_len=%s keyboard_rows=%s",
             payload.chat_id,
@@ -169,7 +185,7 @@ class Sender:
             context=self._payload_brief(payload),
         )
 
-    async def _send_photo(self, payload: MessagePayload) -> Optional[int]:
+    async def _send_photo(self, payload: MessagePayload) -> int | None:
         url = f"{self.api_url}/sendPhoto"
         caption = (payload.text or "")[: self.MAX_PHOTO_CAPTION_LENGTH]
 
@@ -179,7 +195,7 @@ class Sender:
                 filename = "chart.png"
                 content_type = "image/png"
             else:
-                with open(payload.photo_path, 'rb') as photo_file:
+                with open(payload.photo_path, "rb") as photo_file:
                     photo_bytes = photo_file.read()
                 filename = "photo.jpg"
                 content_type = "image/jpeg"
@@ -192,12 +208,16 @@ class Sender:
 
         for attempt in range(1, self.TRANSPORT_RETRY_COUNT + 1):
             data = aiohttp.FormData()
-            data.add_field('chat_id', str(payload.chat_id))
+            data.add_field("chat_id", str(payload.chat_id))
             if caption:
-                data.add_field('caption', caption)
+                data.add_field("caption", caption)
             if payload.keyboard:
-                data.add_field('reply_markup', payload.keyboard.model_dump_json(exclude_none=True))
-            data.add_field('photo', photo_bytes, filename=filename, content_type=content_type)
+                data.add_field(
+                    "reply_markup", payload.keyboard.model_dump_json(exclude_none=True)
+                )
+            data.add_field(
+                "photo", photo_bytes, filename=filename, content_type=content_type
+            )
 
             logger.info(
                 "TG sendPhoto chat_id=%s caption_len=%s source=%s attempt=%s/%s",
@@ -230,10 +250,12 @@ class Sender:
             payload.chat_id,
             self._payload_brief(payload),
         )
-        text_payload = payload.model_copy(update={"photo_content_b64": None, "photo_path": None})
+        text_payload = payload.model_copy(
+            update={"photo_content_b64": None, "photo_path": None}
+        )
         return await self._send_text(text_payload)
 
-    async def _edit_message(self, payload: MessagePayload) -> Optional[int]:
+    async def _edit_message(self, payload: MessagePayload) -> int | None:
         if payload.photo_content_b64 or payload.photo_path:
             media_result = await self._edit_message_media(payload)
             if media_result is not None:
@@ -258,7 +280,7 @@ class Sender:
         )
         return await self._resend_as_new_message(payload)
 
-    async def _resend_as_new_message(self, payload: MessagePayload) -> Optional[int]:
+    async def _resend_as_new_message(self, payload: MessagePayload) -> int | None:
         old_message_id = payload.message_id
         resend_payload = payload.model_copy(update={"message_id": None})
         new_message_id = await self._send_message(resend_payload)
@@ -268,15 +290,17 @@ class Sender:
             await self._delete_message(payload.chat_id, old_message_id)
         return new_message_id
 
-    async def _edit_message_text(self, payload: MessagePayload) -> Optional[int]:
+    async def _edit_message_text(self, payload: MessagePayload) -> int | None:
         url = f"{self.api_url}/editMessageText"
         json_data = {
             "chat_id": payload.chat_id,
             "message_id": payload.message_id,
-            "text": payload.text or ""
+            "text": payload.text or "",
         }
         if payload.keyboard:
-            json_data["reply_markup"] = payload.keyboard.model_dump(mode="json", exclude_none=True)
+            json_data["reply_markup"] = payload.keyboard.model_dump(
+                mode="json", exclude_none=True
+            )
 
         logger.info(
             "TG editMessageText chat_id=%s message_id=%s text_len=%s keyboard_rows=%s",
@@ -292,7 +316,7 @@ class Sender:
             noop_message_id=payload.message_id,
         )
 
-    async def _edit_message_caption(self, payload: MessagePayload) -> Optional[int]:
+    async def _edit_message_caption(self, payload: MessagePayload) -> int | None:
         url = f"{self.api_url}/editMessageCaption"
         caption = (payload.text or "")[: self.MAX_PHOTO_CAPTION_LENGTH]
         json_data = {
@@ -301,7 +325,9 @@ class Sender:
             "caption": caption,
         }
         if payload.keyboard:
-            json_data["reply_markup"] = payload.keyboard.model_dump(mode="json", exclude_none=True)
+            json_data["reply_markup"] = payload.keyboard.model_dump(
+                mode="json", exclude_none=True
+            )
 
         logger.info(
             "TG editMessageCaption chat_id=%s message_id=%s caption_len=%s keyboard_rows=%s",
@@ -317,7 +343,7 @@ class Sender:
             noop_message_id=payload.message_id,
         )
 
-    async def _edit_message_media(self, payload: MessagePayload) -> Optional[int]:
+    async def _edit_message_media(self, payload: MessagePayload) -> int | None:
         url = f"{self.api_url}/editMessageMedia"
 
         try:
@@ -330,7 +356,9 @@ class Sender:
             logger.error("File not found for media edit: %s", payload.photo_path)
             return None
         except Exception as error:
-            logger.error("Failed to prepare media edit payload: %s", error, exc_info=True)
+            logger.error(
+                "Failed to prepare media edit payload: %s", error, exc_info=True
+            )
             return None
 
         for attempt in range(1, self.TRANSPORT_RETRY_COUNT + 1):
@@ -347,8 +375,12 @@ class Sender:
                 media["caption"] = caption
             data.add_field("media", json.dumps(media))
             if payload.keyboard:
-                data.add_field("reply_markup", payload.keyboard.model_dump_json(exclude_none=True))
-            data.add_field("photo", photo_bytes, filename="chart.png", content_type="image/png")
+                data.add_field(
+                    "reply_markup", payload.keyboard.model_dump_json(exclude_none=True)
+                )
+            data.add_field(
+                "photo", photo_bytes, filename="chart.png", content_type="image/png"
+            )
 
             logger.info(
                 "TG editMessageMedia chat_id=%s message_id=%s caption_len=%s keyboard_rows=%s attempt=%s/%s",
@@ -384,7 +416,9 @@ class Sender:
             logger.error(f"Ошибка при удалении сообщения: {e}", exc_info=True)
             return False
 
-    async def _answer_callback_query(self, callback_query_id: str, text: str, show_alert: bool = False):
+    async def _answer_callback_query(
+        self, callback_query_id: str, text: str, show_alert: bool = False
+    ):
         url = f"{self.api_url}/answerCallbackQuery"
         json_data = {
             "callback_query_id": callback_query_id,
@@ -409,7 +443,7 @@ class Sender:
         operation: str,
         context: str,
         noop_message_id: int | None = None,
-    ) -> Optional[int]:
+    ) -> int | None:
         try:
             async with request_context as response:
                 if response.status == 429:
@@ -430,7 +464,12 @@ class Sender:
 
                 if data.get("ok") and data.get("result"):
                     message_id = data["result"].get("message_id")
-                    logger.info("Telegram API ok op=%s message_id=%s context=%s", operation, message_id, context)
+                    logger.info(
+                        "Telegram API ok op=%s message_id=%s context=%s",
+                        operation,
+                        message_id,
+                        context,
+                    )
                     return message_id
 
                 logger.error(
@@ -443,13 +482,29 @@ class Sender:
         except RateLimitError:
             raise
         except MessageNotModifiedError:
-            logger.info("Telegram API no-op op=%s reason=message_not_modified context=%s", operation, context)
+            logger.info(
+                "Telegram API no-op op=%s reason=message_not_modified context=%s",
+                operation,
+                context,
+            )
             return noop_message_id
         except aiohttp.ClientError as e:
-            logger.error("Telegram transport error op=%s context=%s err=%s", operation, context, e, exc_info=True)
+            logger.error(
+                "Telegram transport error op=%s context=%s err=%s",
+                operation,
+                context,
+                e,
+                exc_info=True,
+            )
             return None
         except Exception as e:
-            logger.error("Telegram unexpected error op=%s context=%s err=%s", operation, context, e, exc_info=True)
+            logger.error(
+                "Telegram unexpected error op=%s context=%s err=%s",
+                operation,
+                context,
+                e,
+                exc_info=True,
+            )
             return None
 
     @staticmethod
@@ -487,13 +542,17 @@ class Sender:
         if payload.actor_key is None:
             payload.actor_key = context.get("actor_key")
 
-    async def _apply_post_send_updates(self, payload: MessagePayload, message_id: Optional[int]) -> None:
+    async def _apply_post_send_updates(
+        self, payload: MessagePayload, message_id: int | None
+    ) -> None:
         if payload.runtime_update:
             await self._apply_runtime_update(payload.runtime_update, message_id)
         if payload.fsm_update:
             await self._apply_fsm_update(payload.fsm_update, message_id)
 
-    async def _apply_runtime_update(self, runtime_update: dict, message_id: Optional[int]) -> None:
+    async def _apply_runtime_update(
+        self, runtime_update: dict, message_id: int | None
+    ) -> None:
         game_id = runtime_update["game_id"]
         state = await load_runtime_state(self.app, game_id)
         if state is None:
@@ -509,7 +568,7 @@ class Sender:
             state[message_field] = message_id
         await save_runtime_state(self.app, state)
 
-    async def _apply_fsm_update(self, fsm_update: dict, message_id: Optional[int]) -> None:
+    async def _apply_fsm_update(self, fsm_update: dict, message_id: int | None) -> None:
         data = dict(fsm_update.get("data", {}))
         pending_field = fsm_update.get("pending_field")
         if pending_field:

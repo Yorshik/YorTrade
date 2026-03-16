@@ -1,16 +1,20 @@
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from app.clients.common.mailbox import MessageType, Update
-from app.web.middlewares.base import BaseMiddleware, STOP_PROCESSING
 from app.utils.private_ui import show_private_screen
+from app.web.middlewares.base import STOP_PROCESSING, BaseMiddleware, StopProcessing
 
 if TYPE_CHECKING:
     from app.web.application import App
 
 
 class CallbackSanityMiddleware(BaseMiddleware):
-    async def process(self, update: Update, app: "App") -> Optional[None]:
-        if update.type != MessageType.CALLBACK_QUERY or not update.callback_query or not update.from_user:
+    async def process(self, update: Update, app: App) -> StopProcessing | None:
+        if (
+            update.type != MessageType.CALLBACK_QUERY
+            or not update.callback_query
+            or not update.from_user
+        ):
             return None
 
         callback_data = update.callback_query.data or ""

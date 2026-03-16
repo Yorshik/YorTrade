@@ -1,28 +1,41 @@
-from typing import Optional
-
 from app.clients.common.handlers.base import BaseHandler
 from app.clients.common.mailbox import MessagePayload, MessageType, Update
 from app.market.models import DealType
 from app.utils.private_ui import compute_trade_amount, show_private_screen
-from app.utils.trading import TradeError, execute_trade, get_active_player_context, leave_active_game
+from app.utils.trading import (
+    TradeError,
+    execute_trade,
+    get_active_player_context,
+    leave_active_game,
+)
 
 
 class PrivateGameHandler(BaseHandler):
     async def check(self, update: Update) -> bool:
         if not update.from_user:
             return False
-        if update.type == MessageType.TEXT and update.message and update.message.chat.type == "private":
+        if (
+            update.type == MessageType.TEXT
+            and update.message
+            and update.message.chat.type == "private"
+        ):
             command = self.cut_prefix(update.text)
             return command in {"game", "market"}
-        if update.type == MessageType.CALLBACK_QUERY and update.callback_query.message and update.callback_query.message.chat.type == "private":
+        if (
+            update.type == MessageType.CALLBACK_QUERY
+            and update.callback_query.message
+            and update.callback_query.message.chat.type == "private"
+        ):
             return (update.callback_query.data or "").startswith("private:")
         return False
 
-    async def handle(self, update: Update) -> Optional[MessagePayload]:
+    async def handle(self, update: Update) -> MessagePayload | None:
         source_platform = (update.source_platform or "TG").upper()
         if update.type == MessageType.TEXT:
             try:
-                await get_active_player_context(self.app, update.from_user.id, platform=source_platform)
+                await get_active_player_context(
+                    self.app, update.from_user.id, platform=source_platform
+                )
             except TradeError as exc:
                 return MessagePayload(chat_id=update.chat_id, text=str(exc))
             await show_private_screen(
@@ -35,14 +48,19 @@ class PrivateGameHandler(BaseHandler):
             return None
 
         data = update.callback_query.data or ""
-        state = await self.app.fsm.get_state(update.from_user.id, platform=source_platform)
+        state = await self.app.fsm.get_state(
+            update.from_user.id, platform=source_platform
+        )
         fsm_data = state[1] if state else {}
-        message_id = fsm_data.get("private_message_id") or update.callback_query.message.message_id
+        message_id = (
+            fsm_data.get("private_message_id")
+            or update.callback_query.message.message_id
+        )
 
         if fsm_data.get("private_message_pending"):
             await self.app.sender.answer_callback_query(
                 callback_query_id=update.callback_query.id,
-                text="UI update in progress, try again in a moment.",
+                text="Интерфейс обновляется, попробуй через секунду.",
                 show_alert=False,
             )
             return None
@@ -67,7 +85,9 @@ class PrivateGameHandler(BaseHandler):
             elif data.startswith("private:companies_page:"):
                 shift = int(data.split(":")[-1])
                 new_data = dict(fsm_data)
-                new_data["companies_page"] = int(new_data.get("companies_page", 0)) + shift
+                new_data["companies_page"] = (
+                    int(new_data.get("companies_page", 0)) + shift
+                )
                 await show_private_screen(
                     self.app,
                     update.from_user.id,
@@ -114,7 +134,7 @@ class PrivateGameHandler(BaseHandler):
                 if amount <= 0:
                     await self.app.sender.answer_callback_query(
                         callback_query_id=update.callback_query.id,
-                        text="Nothing to execute.",
+                        text="Нет объёма для сделки.",
                         show_alert=True,
                     )
                     return None
@@ -131,8 +151,8 @@ class PrivateGameHandler(BaseHandler):
                 await self.app.sender.answer_callback_query(
                     callback_query_id=update.callback_query.id,
                     text=(
-                        f"{'Bought' if deal_type == DealType.BUY else 'Sold'} "
-                        f"{result['amount']} shares"
+                        f"{'Куплено' if deal_type == DealType.BUY else 'Продано'} "
+                        f"{result['amount']} акций"
                     ),
                     show_alert=False,
                 )
@@ -158,7 +178,9 @@ class PrivateGameHandler(BaseHandler):
             elif data.startswith("private:portfolio_page:"):
                 shift = int(data.split(":")[-1])
                 new_data = dict(fsm_data)
-                new_data["portfolio_page"] = int(new_data.get("portfolio_page", 0)) + shift
+                new_data["portfolio_page"] = (
+                    int(new_data.get("portfolio_page", 0)) + shift
+                )
                 await show_private_screen(
                     self.app,
                     update.from_user.id,
@@ -202,10 +224,12 @@ class PrivateGameHandler(BaseHandler):
                     target_platform=source_platform,
                 )
             elif data == "private:leave_yes":
-                result = await leave_active_game(self.app, update.from_user.id, platform=source_platform)
+                result = await leave_active_game(
+                    self.app, update.from_user.id, platform=source_platform
+                )
                 await self.app.sender.answer_callback_query(
                     callback_query_id=update.callback_query.id,
-                    text="You left the game.",
+                    text="Ты покинул игру.",
                     show_alert=False,
                 )
                 await self.app.sender.send_message(
@@ -216,14 +240,14 @@ class PrivateGameHandler(BaseHandler):
                             [
                                 line
                                 for line in [
-                                    "You left the game.",
-                                    f"Balance: {result['balance']:.2f}",
-                                    f"Assets capital: {result['assets_capital']:.2f}",
-                                    f"Frozen total capital: {result['total_capital']:.2f}",
+                                    "Ты покинул игру.",
+                                    f"Баланс: {result['balance']:.2f}",
+                                    f"Капитал активов: {result['assets_capital']:.2f}",
+                                    f"Зафиксированный итоговый капитал: {result['total_capital']:.2f}",
                                     (
-                                        "Game finished automatically: "
-                                        f"active players left {result['active_players_left']}, "
-                                        f"minimum is {result['min_players']}."
+                                        "Игра завершилась автоматически: "
+                                        f"активных игроков осталось {result['active_players_left']}, "
+                                        f"минимум {result['min_players']}."
                                     )
                                     if result.get("game_finished")
                                     else None,
@@ -233,7 +257,9 @@ class PrivateGameHandler(BaseHandler):
                         ),
                     )
                 )
-                await self.app.sender.delete_message(update.chat_id, message_id, target_platform=source_platform)
+                await self.app.sender.delete_message(
+                    update.chat_id, message_id, target_platform=source_platform
+                )
             else:
                 return None
         except TradeError as exc:

@@ -1,7 +1,7 @@
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from app.clients.common.mailbox import MessagePayload, MessageType, Update
-from app.web.middlewares.base import BaseMiddleware, STOP_PROCESSING
+from app.web.middlewares.base import STOP_PROCESSING, BaseMiddleware
 
 if TYPE_CHECKING:
     from app.web.application import App
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 class MaintenanceMiddleware(BaseMiddleware):
     KEY = "maintenance_mode"
 
-    async def process(self, update: Update, app: "App") -> Optional[MessagePayload]:
+    async def process(self, update: Update, app: App) -> MessagePayload | None:
         if not update.chat_id:
             return None
         if update.type == MessageType.CALLBACK_QUERY and update.callback_query:

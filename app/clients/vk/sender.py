@@ -1,10 +1,10 @@
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import random
 from time import monotonic
-from typing import Optional
 
 import aiohttp
 from aio_pika.abc import AbstractIncomingMessage
@@ -33,7 +33,7 @@ class Sender:
         self.api_url = app.config.VK_API_URL.rstrip("/")
         self.token = app.config.VK_TOKEN
         self.api_version = app.config.VK_API_VERSION
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self.queue_name = "vk_sender_queue"
 
     async def _requeue_message(self, payload: MessagePayload):
@@ -50,7 +50,9 @@ class Sender:
 
     async def _process_message(self, message: AbstractIncomingMessage):
         async with message.process():
-            payload = MessagePayload.model_validate(json.loads(message.body.decode("utf-8")))
+            payload = MessagePayload.model_validate(
+                json.loads(message.body.decode("utf-8"))
+            )
             logger.info("VK sender dequeue %s", self._payload_brief(payload))
             try:
                 send_started_at = monotonic()
@@ -66,7 +68,12 @@ class Sender:
             except RateLimitError:
                 await self._requeue_message(payload)
             except Exception as error:
-                logger.error("VK sender unhandled error for %s: %s", self._payload_brief(payload), error, exc_info=True)
+                logger.error(
+                    "VK sender unhandled error for %s: %s",
+                    self._payload_brief(payload),
+                    error,
+                    exc_info=True,
+                )
 
     async def _consume(self):
         sender_queue = await self.rabbitmq.get_queue(self.queue_name)
@@ -87,33 +94,41 @@ class Sender:
         if not self._task:
             return
         self._task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._task
-        except asyncio.CancelledError:
-            pass
         self._task = None
         logger.info("VK sender stopped.")
 
-    async def _dispatch_payload(self, payload: MessagePayload) -> Optional[int]:
+    async def _dispatch_payload(self, payload: MessagePayload) -> int | None:
         if payload.action == PayloadAction.DELETE:
             await self._delete_message(payload)
             return None
         if payload.action == PayloadAction.ANSWER_CALLBACK:
-            await self._answer_callback_query(payload.callback_query_id, payload.text or "", payload.show_alert)
+            await self._answer_callback_query(
+                payload.callback_query_id, payload.text or "", payload.show_alert
+            )
             return None
-        if payload.action == PayloadAction.EDIT or payload.action == PayloadAction.EDIT_CAPTION or payload.action == PayloadAction.EDIT_MEDIA:
+        if (
+            payload.action == PayloadAction.EDIT
+            or payload.action == PayloadAction.EDIT_CAPTION
+            or payload.action == PayloadAction.EDIT_MEDIA
+        ):
             return await self._edit_message(payload)
         return await self._send_message(payload)
 
     async def send_message(self, payload: MessagePayload) -> None:
         self._attach_context_metadata(payload)
         payload.action = PayloadAction.SEND
-        await self.rabbitmq.publish(self.queue_name, payload.model_dump(mode="json", exclude_none=True))
+        await self.rabbitmq.publish(
+            self.queue_name, payload.model_dump(mode="json", exclude_none=True)
+        )
 
     async def edit_message(self, payload: MessagePayload) -> None:
         self._attach_context_metadata(payload)
         payload.action = PayloadAction.EDIT
-        await self.rabbitmq.publish(self.queue_name, payload.model_dump(mode="json", exclude_none=True))
+        await self.rabbitmq.publish(
+            self.queue_name, payload.model_dump(mode="json", exclude_none=True)
+        )
 
     async def delete_message(self, chat_id: int, message_id: int) -> None:
         payload = MessagePayload(
@@ -122,9 +137,13 @@ class Sender:
             message_id=message_id,
         )
         self._attach_context_metadata(payload)
-        await self.rabbitmq.publish(self.queue_name, payload.model_dump(mode="json", exclude_none=True))
+        await self.rabbitmq.publish(
+            self.queue_name, payload.model_dump(mode="json", exclude_none=True)
+        )
 
-    async def answer_callback_query(self, callback_query_id: str, text: str, show_alert: bool = False) -> None:
+    async def answer_callback_query(
+        self, callback_query_id: str, text: str, show_alert: bool = False
+    ) -> None:
         payload = MessagePayload(
             chat_id=0,
             action=PayloadAction.ANSWER_CALLBACK,
@@ -133,21 +152,25 @@ class Sender:
             show_alert=show_alert,
         )
         self._attach_context_metadata(payload)
-        await self.rabbitmq.publish(self.queue_name, payload.model_dump(mode="json", exclude_none=True))
+        await self.rabbitmq.publish(
+            self.queue_name, payload.model_dump(mode="json", exclude_none=True)
+        )
 
-    async def _send_message(self, payload: MessagePayload) -> Optional[int]:
+    async def _send_message(self, payload: MessagePayload) -> int | None:
         if payload.photo_content_b64 or payload.photo_path:
             return await self._send_photo(payload)
         return await self._send_text(payload)
 
-    async def _send_text(self, payload: MessagePayload) -> Optional[int]:
+    async def _send_text(self, payload: MessagePayload) -> int | None:
         params = {
             "peer_id": payload.chat_id,
             "message": payload.text or "",
             "random_id": random.randint(1, 2_147_483_647),
         }
         if payload.keyboard:
-            params["keyboard"] = json.dumps(self._vk_keyboard(payload.keyboard.inline_keyboard), ensure_ascii=False)
+            params["keyboard"] = json.dumps(
+                self._vk_keyboard(payload.keyboard.inline_keyboard), ensure_ascii=False
+            )
 
         logger.info(
             "VK messages.send peer_id=%s text_len=%s keyboard_rows=%s",
@@ -160,8 +183,10 @@ class Sender:
             return result
         return None
 
-    async def _send_photo(self, payload: MessagePayload) -> Optional[int]:
-        attachment = await self._upload_photo_attachment(payload.chat_id, payload.photo_content_b64, payload.photo_path)
+    async def _send_photo(self, payload: MessagePayload) -> int | None:
+        attachment = await self._upload_photo_attachment(
+            payload.chat_id, payload.photo_content_b64, payload.photo_path
+        )
         if not attachment:
             return None
 
@@ -172,17 +197,25 @@ class Sender:
             "random_id": random.randint(1, 2_147_483_647),
         }
         if payload.keyboard:
-            params["keyboard"] = json.dumps(self._vk_keyboard(payload.keyboard.inline_keyboard), ensure_ascii=False)
+            params["keyboard"] = json.dumps(
+                self._vk_keyboard(payload.keyboard.inline_keyboard), ensure_ascii=False
+            )
 
-        logger.info("VK messages.send(photo) peer_id=%s attachment=%s", payload.chat_id, attachment)
+        logger.info(
+            "VK messages.send(photo) peer_id=%s attachment=%s",
+            payload.chat_id,
+            attachment,
+        )
         result = await self._api_call("messages.send", params)
         if isinstance(result, int):
             return result
         return None
 
-    async def _edit_message(self, payload: MessagePayload) -> Optional[int]:
+    async def _edit_message(self, payload: MessagePayload) -> int | None:
         if payload.message_id is None:
-            logger.warning("VK edit skipped: message_id missing for chat_id=%s", payload.chat_id)
+            logger.warning(
+                "VK edit skipped: message_id missing for chat_id=%s", payload.chat_id
+            )
             return None
 
         params = {
@@ -195,9 +228,13 @@ class Sender:
         else:
             params["message_id"] = payload.message_id
         if payload.keyboard:
-            params["keyboard"] = json.dumps(self._vk_keyboard(payload.keyboard.inline_keyboard), ensure_ascii=False)
+            params["keyboard"] = json.dumps(
+                self._vk_keyboard(payload.keyboard.inline_keyboard), ensure_ascii=False
+            )
         if payload.photo_content_b64 or payload.photo_path:
-            attachment = await self._upload_photo_attachment(payload.chat_id, payload.photo_content_b64, payload.photo_path)
+            attachment = await self._upload_photo_attachment(
+                payload.chat_id, payload.photo_content_b64, payload.photo_path
+            )
             if attachment:
                 params["attachment"] = attachment
 
@@ -273,7 +310,9 @@ class Sender:
             )
             await self._api_call("messages.delete", fallback_params)
 
-    async def _answer_callback_query(self, callback_query_id: str, text: str, show_alert: bool = False):
+    async def _answer_callback_query(
+        self, callback_query_id: str, text: str, show_alert: bool = False
+    ):
         if not callback_query_id:
             return
         try:
@@ -281,7 +320,9 @@ class Sender:
             user_id = int(user_id_raw)
             peer_id = int(peer_id_raw)
         except ValueError:
-            logger.warning("VK callback answer skipped: invalid callback id %s", callback_query_id)
+            logger.warning(
+                "VK callback answer skipped: invalid callback id %s", callback_query_id
+            )
             return
 
         event_data = {
@@ -297,23 +338,34 @@ class Sender:
             "peer_id": peer_id,
             "event_data": json.dumps(event_data, ensure_ascii=False),
         }
-        logger.info("VK sendMessageEventAnswer event_id=%s user_id=%s peer_id=%s", event_id, user_id, peer_id)
+        logger.info(
+            "VK sendMessageEventAnswer event_id=%s user_id=%s peer_id=%s",
+            event_id,
+            user_id,
+            peer_id,
+        )
         await self._api_call("messages.sendMessageEventAnswer", params)
 
-    async def _api_call(self, method: str, params: dict) -> Optional[dict | list | int | bool]:
+    async def _api_call(
+        self, method: str, params: dict
+    ) -> dict | list | int | bool | None:
         payload = {
             **params,
             "access_token": self.token,
             "v": self.api_version,
         }
         try:
-            async with self.session.post(f"{self.api_url}/{method}", data=payload, timeout=20) as response:
+            async with self.session.post(
+                f"{self.api_url}/{method}", data=payload, timeout=20
+            ) as response:
                 response.raise_for_status()
                 data = await response.json(content_type=None)
         except aiohttp.ClientError as error:
-            logger.error("VK transport error method=%s err=%s", method, error, exc_info=True)
+            logger.error(
+                "VK transport error method=%s err=%s", method, error, exc_info=True
+            )
             return None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("VK timeout method=%s", method)
             return None
 
@@ -326,10 +378,18 @@ class Sender:
 
         return data.get("response")
 
-    async def _upload_photo_attachment(self, peer_id: int, photo_b64: str | None, photo_path: str | None) -> str | None:
-        upload_server = await self._api_call("photos.getMessagesUploadServer", {"peer_id": peer_id})
+    async def _upload_photo_attachment(
+        self, peer_id: int, photo_b64: str | None, photo_path: str | None
+    ) -> str | None:
+        upload_server = await self._api_call(
+            "photos.getMessagesUploadServer", {"peer_id": peer_id}
+        )
         if not isinstance(upload_server, dict) or "upload_url" not in upload_server:
-            logger.error("VK upload server error for peer_id=%s response=%s", peer_id, upload_server)
+            logger.error(
+                "VK upload server error for peer_id=%s response=%s",
+                peer_id,
+                upload_server,
+            )
             return None
 
         try:
@@ -343,15 +403,19 @@ class Sender:
             return None
 
         form = aiohttp.FormData()
-        form.add_field("photo", photo_bytes, filename="image.png", content_type="image/png")
+        form.add_field(
+            "photo", photo_bytes, filename="image.png", content_type="image/png"
+        )
         try:
-            async with self.session.post(upload_server["upload_url"], data=form, timeout=30) as response:
+            async with self.session.post(
+                upload_server["upload_url"], data=form, timeout=30
+            ) as response:
                 response.raise_for_status()
                 upload_result = await response.json(content_type=None)
         except aiohttp.ClientError as error:
             logger.error("VK upload transport error err=%s", error, exc_info=True)
             return None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("VK upload timeout")
             return None
 
@@ -398,7 +462,9 @@ class Sender:
                     )
                     total_buttons += 1
                     continue
-                payload = json.dumps({"cmd": button.callback_data or "noop"}, ensure_ascii=False)
+                payload = json.dumps(
+                    {"cmd": button.callback_data or "noop"}, ensure_ascii=False
+                )
                 vk_row.append(
                     {
                         "action": {
@@ -470,13 +536,17 @@ class Sender:
         normalized = str(source).strip().lower()
         return normalized in {"2", "callback_query", "messagetype.callback_query"}
 
-    async def _apply_post_send_updates(self, payload: MessagePayload, message_id: Optional[int]) -> None:
+    async def _apply_post_send_updates(
+        self, payload: MessagePayload, message_id: int | None
+    ) -> None:
         if payload.runtime_update:
             await self._apply_runtime_update(payload.runtime_update, message_id)
         if payload.fsm_update:
             await self._apply_fsm_update(payload.fsm_update, message_id)
 
-    async def _apply_runtime_update(self, runtime_update: dict, message_id: Optional[int]) -> None:
+    async def _apply_runtime_update(
+        self, runtime_update: dict, message_id: int | None
+    ) -> None:
         game_id = runtime_update["game_id"]
         state = await load_runtime_state(self.app, game_id)
         if state is None:
@@ -492,7 +562,7 @@ class Sender:
             state[message_field] = message_id
         await save_runtime_state(self.app, state)
 
-    async def _apply_fsm_update(self, fsm_update: dict, message_id: Optional[int]) -> None:
+    async def _apply_fsm_update(self, fsm_update: dict, message_id: int | None) -> None:
         data = dict(fsm_update.get("data", {}))
         pending_field = fsm_update.get("pending_field")
         if pending_field:

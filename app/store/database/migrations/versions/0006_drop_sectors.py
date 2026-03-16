@@ -5,17 +5,16 @@ Revises: 0005_users_fsm_json
 Create Date: 2026-03-15 00:00:00.000000
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import inspect
 
-
 revision: str = "0006_drop_sectors"
-down_revision: Union[str, Sequence[str], None] = "0005_users_fsm_json"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "0005_users_fsm_json"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _has_table(inspector, table_name: str) -> bool:

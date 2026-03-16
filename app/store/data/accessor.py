@@ -28,7 +28,9 @@ class _AssetAccessor:
             await session.refresh(asset)
             return asset
 
-    async def get_or_create(self, name: str, base_volatility: float = 0.0) -> tuple[Asset, bool]:
+    async def get_or_create(
+        self, name: str, base_volatility: float = 0.0
+    ) -> tuple[Asset, bool]:
         asset = await self.get_by_name(name)
         if asset:
             return asset, False
@@ -99,7 +101,9 @@ class _PhraseAccessor:
             asset_id=asset_id,
         ), True
 
-    async def list_for_asset(self, asset_id: int, phrase_type: PhraseType) -> list[Phrase]:
+    async def list_for_asset(
+        self, asset_id: int, phrase_type: PhraseType
+    ) -> list[Phrase]:
         async with self.db.session as session:
             stmt = select(Phrase).where(
                 Phrase.asset_id == asset_id,

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from app.clients.common.handlers.base import BaseHandler
 from app.clients.common.mailbox import MessagePayload, MessageType, Update
 from app.market.models import DealType
@@ -15,7 +13,7 @@ class TradeHandler(BaseHandler):
         command = self.cut_prefix(update.text).split()
         return bool(command and command[0] in {"buy", "sell"})
 
-    async def handle(self, update: Update) -> Optional[MessagePayload]:
+    async def handle(self, update: Update) -> MessagePayload | None:
         source_platform = (update.source_platform or "TG").upper()
         parts = self.cut_prefix(update.text or "").split()
         if len(parts) != 3:
@@ -29,7 +27,10 @@ class TradeHandler(BaseHandler):
             asset_id = int(asset_id_raw)
             amount = int(amount_raw)
         except ValueError:
-            return MessagePayload(chat_id=update.chat_id, text="asset_id и amount должны быть числами.")
+            return MessagePayload(
+                chat_id=update.chat_id,
+                text="ID актива и количество должны быть числами.",
+            )
 
         deal_type = DealType.BUY if command == "buy" else DealType.SELL
         try:

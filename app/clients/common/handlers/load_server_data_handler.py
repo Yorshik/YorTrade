@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from app.clients.common.handlers.base import BaseHandler
 from app.clients.common.mailbox import MessagePayload, MessageType, Update
@@ -16,11 +15,9 @@ class LoadServerDataHandler(BaseHandler):
         if command != "load_server_data":
             return False
         logger.info(f"Команда: {command}, {self.app.config.ADMIN_TG_ID}")
-        if update.from_user.id != self.app.config.ADMIN_TG_ID:
-            return False
-        return True
+        return update.from_user.id == self.app.config.ADMIN_TG_ID
 
-    async def handle(self, update: Update) -> Optional[MessagePayload]:
+    async def handle(self, update: Update) -> MessagePayload | None:
         stats = await load_server_data(self.app)
         return MessagePayload(
             chat_id=update.chat_id,

@@ -1,18 +1,19 @@
-from enum import Enum, auto
-from typing import Optional, List, Any
+from enum import StrEnum, auto
+from typing import Any
+
 from pydantic import BaseModel, Field, model_validator
 
 from app.utils.platform import build_actor_key
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     TEXT = auto()
     CALLBACK_QUERY = auto()
     NEW_CHAT_MEMBERS = auto()
     UNKNOWN = auto()
 
 
-class PayloadAction(str, Enum):
+class PayloadAction(StrEnum):
     SEND = "send"
     EDIT = "edit"
     EDIT_CAPTION = "edit_caption"
@@ -23,35 +24,35 @@ class PayloadAction(str, Enum):
 
 class InlineKeyboardButton(BaseModel):
     text: str
-    callback_data: Optional[str] = None
-    url: Optional[str] = None
+    callback_data: str | None = None
+    url: str | None = None
 
 
 class InlineKeyboardMarkup(BaseModel):
-    inline_keyboard: List[List[InlineKeyboardButton]]
+    inline_keyboard: list[list[InlineKeyboardButton]]
 
 
 class MessagePayload(BaseModel):
     chat_id: int
     action: PayloadAction = PayloadAction.SEND
-    text: Optional[str] = None
-    photo_path: Optional[str] = None
-    photo_content_b64: Optional[str] = None
-    keyboard: Optional[InlineKeyboardMarkup] = None
-    message_id: Optional[int] = None
+    text: str | None = None
+    photo_path: str | None = None
+    photo_content_b64: str | None = None
+    keyboard: InlineKeyboardMarkup | None = None
+    message_id: int | None = None
     retry_count: int = 0
-    trace_started_at: Optional[float] = None
-    callback_query_id: Optional[str] = None
+    trace_started_at: float | None = None
+    callback_query_id: str | None = None
     show_alert: bool = False
-    runtime_update: Optional[dict[str, Any]] = None
-    fsm_update: Optional[dict[str, Any]] = None
-    source_update_id: Optional[int] = None
-    source_user_id: Optional[int] = None
-    source_chat_id: Optional[int] = None
-    source_update_type: Optional[str] = None
-    source_platform: Optional[str] = None
-    target_platform: Optional[str] = None
-    actor_key: Optional[str] = None
+    runtime_update: dict[str, Any] | None = None
+    fsm_update: dict[str, Any] | None = None
+    source_update_id: int | None = None
+    source_user_id: int | None = None
+    source_chat_id: int | None = None
+    source_update_type: str | None = None
+    source_platform: str | None = None
+    target_platform: str | None = None
+    actor_key: str | None = None
 
     class Config:
         from_attributes = True
@@ -61,47 +62,47 @@ class User(BaseModel):
     id: int
     is_bot: bool
     first_name: str
-    last_name: Optional[str] = None
-    username: Optional[str] = None
+    last_name: str | None = None
+    username: str | None = None
 
 
 class Chat(BaseModel):
     id: int
     type: str
-    title: Optional[str] = None
+    title: str | None = None
 
 
 class Message(BaseModel):
     message_id: int
-    from_user: Optional[User] = Field(None, alias="from")
+    from_user: User | None = Field(None, alias="from")
     chat: Chat
-    text: Optional[str] = None
-    new_chat_members: List[User] = []
+    text: str | None = None
+    new_chat_members: list[User] = []
 
 
 class CallbackQuery(BaseModel):
     id: str
     from_user: User = Field(..., alias="from")
-    message: Optional[Message] = None
-    data: Optional[str] = None
+    message: Message | None = None
+    data: str | None = None
 
 
 class Update(BaseModel):
     update_id: int
-    message: Optional[Message] = None
-    callback_query: Optional[CallbackQuery] = None
-    trace_started_at: Optional[float] = None
+    message: Message | None = None
+    callback_query: CallbackQuery | None = None
+    trace_started_at: float | None = None
 
     # Новые унифицированные поля
-    from_user: Optional[User] = None
-    chat_id: Optional[int] = None
-    text: Optional[str] = None
-    source_platform: Optional[str] = None
-    actor_key: Optional[str] = None
-    user_id: Optional[int] = None
+    from_user: User | None = None
+    chat_id: int | None = None
+    text: str | None = None
+    source_platform: str | None = None
+    actor_key: str | None = None
+    user_id: int | None = None
 
-    @model_validator(mode='after')
-    def unify_fields(self) -> 'Update':
+    @model_validator(mode="after")
+    def unify_fields(self) -> Update:
         if self.message:
             self.from_user = self.message.from_user
             self.chat_id = self.message.chat.id

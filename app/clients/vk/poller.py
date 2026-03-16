@@ -1,8 +1,8 @@
 import asyncio
+import contextlib
 import json
 import logging
 from time import monotonic
-from typing import Optional
 
 import aiohttp
 from pydantic import ValidationError
@@ -23,14 +23,16 @@ class Poller:
         self.group_id = int(self.app.config.VK_GROUP_ID)
         self.api_version = self.app.config.VK_API_VERSION
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._update_seq = 0
+        self._user_cache: dict[int, dict[str, str]] = {}
+        self._chat_title_cache: dict[int, str] = {}
 
     def _next_update_id(self) -> int:
         self._update_seq += 1
         return self._update_seq
 
-    async def _api_call(self, method: str, params: dict | None = None) -> Optional[dict]:
+    async def _api_call(self, method: str, params: dict | None = None) -> dict | None:
         params = params or {}
         params.update(
             {
@@ -39,13 +41,17 @@ class Poller:
             }
         )
         try:
-            async with self.session.get(f"{self.api_url}/{method}", params=params, timeout=15) as response:
+            async with self.session.get(
+                f"{self.api_url}/{method}", params=params, timeout=15
+            ) as response:
                 response.raise_for_status()
                 payload = await response.json()
         except aiohttp.ClientError as error:
-            logger.error("VK api transport error method=%s err=%s", method, error, exc_info=True)
+            logger.error(
+                "VK api transport error method=%s err=%s", method, error, exc_info=True
+            )
             return None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("VK api timeout method=%s", method)
             return None
 
@@ -54,7 +60,7 @@ class Poller:
             return None
         return payload.get("response")
 
-    async def _get_longpoll_server(self) -> Optional[dict]:
+    async def _get_longpoll_server(self) -> dict | None:
         return await self._api_call(
             "groups.getLongPollServer",
             {
@@ -62,7 +68,9 @@ class Poller:
             },
         )
 
-    async def _check_updates(self, server: str, key: str, ts: str, wait: int = 25) -> Optional[dict]:
+    async def _check_updates(
+        self, server: str, key: str, ts: str, wait: int = 25
+    ) -> dict | None:
         params = {
             "act": "a_check",
             "key": key,
@@ -72,13 +80,15 @@ class Poller:
             "version": 3,
         }
         try:
-            async with self.session.get(server, params=params, timeout=wait + 10) as response:
+            async with self.session.get(
+                server, params=params, timeout=wait + 10
+            ) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as error:
             logger.error("VK longpoll transport error err=%s", error, exc_info=True)
             return None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("VK longpoll timeout")
             return None
 
@@ -90,7 +100,74 @@ class Poller:
             return "private"
         return "group"
 
-    def _convert_message_new(self, event: dict) -> dict | None:
+    async def _resolve_user_info(self, user_id: int) -> dict[str, str]:
+        cached = self._user_cache.get(user_id)
+        if cached is not None:
+            return cached
+
+        fallback_name = f"vk_user_{user_id}"
+        user_info = {
+            "first_name": fallback_name,
+            "last_name": "",
+            "username": fallback_name,
+        }
+        response = await self._api_call(
+            "users.get",
+            {
+                "user_ids": user_id,
+                "fields": "domain",
+            },
+        )
+        if isinstance(response, list) and response:
+            user_payload = response[0] or {}
+            first_name = str(user_payload.get("first_name") or fallback_name).strip()
+            last_name = str(user_payload.get("last_name") or "").strip()
+            full_name = " ".join(
+                part for part in [first_name, last_name] if part
+            ).strip()
+            username = (
+                full_name or str(user_payload.get("domain") or fallback_name).strip()
+            )
+            user_info = {
+                "first_name": first_name or fallback_name,
+                "last_name": last_name,
+                "username": username or fallback_name,
+            }
+
+        self._user_cache[user_id] = user_info
+        return user_info
+
+    async def _resolve_chat_title(self, peer_id: int) -> str | None:
+        if peer_id < 2_000_000_000:
+            return None
+        cached = self._chat_title_cache.get(peer_id)
+        if cached is not None:
+            return cached
+
+        title = f"vk_chat_{peer_id}"
+        response = await self._api_call(
+            "messages.getConversationsById",
+            {
+                "peer_ids": peer_id,
+            },
+        )
+        if isinstance(response, dict):
+            items = response.get("items") or []
+            if items and isinstance(items[0], dict):
+                conversation = items[0].get("conversation") or {}
+                chat_settings = (
+                    conversation.get("chat_settings")
+                    or items[0].get("chat_settings")
+                    or {}
+                )
+                chat_title = chat_settings.get("title")
+                if chat_title:
+                    title = str(chat_title)
+
+        self._chat_title_cache[peer_id] = title
+        return title
+
+    async def _convert_message_new(self, event: dict) -> dict | None:
         obj = event.get("object") or {}
         message = obj.get("message") or {}
         peer_id = int(message.get("peer_id") or 0)
@@ -98,28 +175,35 @@ class Poller:
         if not peer_id or not from_id:
             return None
 
+        user_info = await self._resolve_user_info(from_id)
+        chat_title = await self._resolve_chat_title(peer_id)
         update_id = self._next_update_id()
         return {
             "update_id": update_id,
             "message": {
-                "message_id": int(message.get("id") or message.get("conversation_message_id") or update_id),
+                "message_id": int(
+                    message.get("id")
+                    or message.get("conversation_message_id")
+                    or update_id
+                ),
                 "from": {
                     "id": from_id,
                     "is_bot": False,
-                    "first_name": f"vk_user_{from_id}",
-                    "username": None,
+                    "first_name": user_info["first_name"],
+                    "last_name": user_info["last_name"] or None,
+                    "username": user_info["username"],
                 },
                 "chat": {
                     "id": peer_id,
                     "type": self._chat_type(peer_id, from_id),
-                    "title": f"vk_chat_{peer_id}" if peer_id >= 2_000_000_000 else None,
+                    "title": chat_title,
                 },
                 "text": message.get("text") or "",
                 "new_chat_members": [],
             },
         }
 
-    def _convert_message_event(self, event: dict) -> dict | None:
+    async def _convert_message_event(self, event: dict) -> dict | None:
         obj = event.get("object") or {}
         peer_id = int(obj.get("peer_id") or 0)
         user_id = int(obj.get("user_id") or 0)
@@ -127,6 +211,8 @@ class Poller:
         if not peer_id or not user_id or not event_id:
             return None
 
+        user_info = await self._resolve_user_info(user_id)
+        chat_title = await self._resolve_chat_title(peer_id)
         payload = obj.get("payload")
         callback_data = self._extract_callback_data(payload)
 
@@ -139,15 +225,16 @@ class Poller:
                 "from": {
                     "id": user_id,
                     "is_bot": False,
-                    "first_name": f"vk_user_{user_id}",
-                    "username": None,
+                    "first_name": user_info["first_name"],
+                    "last_name": user_info["last_name"] or None,
+                    "username": user_info["username"],
                 },
                 "message": {
                     "message_id": int(obj.get("conversation_message_id") or update_id),
                     "chat": {
                         "id": peer_id,
                         "type": self._chat_type(peer_id, user_id),
-                        "title": f"vk_chat_{peer_id}" if peer_id >= 2_000_000_000 else None,
+                        "title": chat_title,
                     },
                     "text": None,
                     "new_chat_members": [],
@@ -179,12 +266,12 @@ class Poller:
 
         return ""
 
-    def _convert_event(self, event: dict) -> dict | None:
+    async def _convert_event(self, event: dict) -> dict | None:
         event_type = event.get("type")
         if event_type == "message_new":
-            return self._convert_message_new(event)
+            return await self._convert_message_new(event)
         if event_type == "message_event":
-            return self._convert_message_event(event)
+            return await self._convert_message_event(event)
         return None
 
     async def _poll(self):
@@ -205,7 +292,9 @@ class Poller:
                 if not updates_response:
                     break
                 if "failed" in updates_response:
-                    logger.warning("VK longpoll reset required payload=%s", updates_response)
+                    logger.warning(
+                        "VK longpoll reset required payload=%s", updates_response
+                    )
                     break
 
                 ts = str(updates_response.get("ts", ts))
@@ -215,7 +304,7 @@ class Poller:
 
                 logger.info("VK poller batch size=%s", len(updates))
                 for event in updates:
-                    normalized = self._convert_event(event)
+                    normalized = await self._convert_event(event)
                     if not normalized:
                         continue
                     normalized["trace_started_at"] = monotonic()
@@ -232,12 +321,24 @@ class Poller:
                     logger.info(
                         "VK poller enqueue update_id=%s kind=%s chat_id=%s from_user=%s text=%s callback=%s",
                         normalized.get("update_id"),
-                        "callback_query" if normalized.get("callback_query") else "message",
-                        (normalized.get("message") or (normalized.get("callback_query") or {}).get("message") or {}).get("chat", {}).get("id"),
+                        "callback_query"
+                        if normalized.get("callback_query")
+                        else "message",
+                        (
+                            normalized.get("message")
+                            or (normalized.get("callback_query") or {}).get("message")
+                            or {}
+                        )
+                        .get("chat", {})
+                        .get("id"),
                         (normalized.get("message") or {}).get("from", {}).get("id")
-                        or (normalized.get("callback_query") or {}).get("from", {}).get("id"),
+                        or (normalized.get("callback_query") or {})
+                        .get("from", {})
+                        .get("id"),
                         ((normalized.get("message") or {}).get("text") or "")[:120],
-                        ((normalized.get("callback_query") or {}).get("data") or "")[:120],
+                        ((normalized.get("callback_query") or {}).get("data") or "")[
+                            :120
+                        ],
                     )
                     await self.rabbitmq.publish(updates_queue_name, normalized)
 
@@ -254,8 +355,6 @@ class Poller:
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("VK poller stopped.")

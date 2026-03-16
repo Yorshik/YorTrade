@@ -1,8 +1,7 @@
-from typing import Optional
 from sqlalchemy import select
 
-from app.store.database.accessor import DatabaseAccessor
 from app.market.models import Deal, DealType, Game, GameAsset, GameStatus, Portfolio
+from app.store.database.accessor import DatabaseAccessor
 
 
 class _GameAccessor:
@@ -20,26 +19,39 @@ class _GameAccessor:
             .order_by(Game.id.desc())
         )
 
-    async def get_by_id(self, game_id: int) -> Optional[Game]:
+    async def get_by_id(self, game_id: int) -> Game | None:
         async with self.db.session as session:
             stmt = select(Game).where(Game.id == game_id)
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
-    async def create_game(self, user_id: int, chat_id: int, settings: dict | None = None, platform: str = "TG") -> Game:
+    async def create_game(
+        self,
+        user_id: int,
+        chat_id: int,
+        settings: dict | None = None,
+        platform: str = "TG",
+    ) -> Game:
         async with self.db.session as session:
             normalized_platform = str(platform).upper()
-            existing_game = await session.execute(self._current_game_stmt(chat_id, normalized_platform))
+            existing_game = await session.execute(
+                self._current_game_stmt(chat_id, normalized_platform)
+            )
             current_game = existing_game.scalars().first()
             if current_game is not None:
                 return current_game
-            new_game = Game(chat_id=chat_id, host_id=user_id, settings=settings, platform=normalized_platform)
+            new_game = Game(
+                chat_id=chat_id,
+                host_id=user_id,
+                settings=settings,
+                platform=normalized_platform,
+            )
             session.add(new_game)
             await session.commit()
             await session.refresh(new_game)
             return new_game
 
-    async def get_by_chat_id(self, chat_id: int, platform: str = "TG") -> Optional[Game]:
+    async def get_by_chat_id(self, chat_id: int, platform: str = "TG") -> Game | None:
         async with self.db.session as session:
             stmt = self._current_game_stmt(chat_id, platform)
             result = await session.execute(stmt)
@@ -78,7 +90,9 @@ class _GameAssetAccessor:
 
     async def delete_by_game(self, game_id: int) -> None:
         async with self.db.session as session:
-            assets = await session.execute(select(GameAsset).where(GameAsset.game_id == game_id))
+            assets = await session.execute(
+                select(GameAsset).where(GameAsset.game_id == game_id)
+            )
             for asset in assets.scalars().all():
                 await session.delete(asset)
             await session.commit()
@@ -107,7 +121,7 @@ class _GameAssetAccessor:
             await session.refresh(game_asset)
             return game_asset
 
-    async def get(self, game_id: int, asset_id: int) -> Optional[GameAsset]:
+    async def get(self, game_id: int, asset_id: int) -> GameAsset | None:
         async with self.db.session as session:
             stmt = select(GameAsset).where(
                 GameAsset.game_id == game_id,
@@ -128,7 +142,7 @@ class _PortfolioAccessor:
     def __init__(self, db: DatabaseAccessor):
         self.db = db
 
-    async def get(self, player_id: int, asset_id: int) -> Optional[Portfolio]:
+    async def get(self, player_id: int, asset_id: int) -> Portfolio | None:
         async with self.db.session as session:
             stmt = select(Portfolio).where(
                 Portfolio.player_id == player_id,

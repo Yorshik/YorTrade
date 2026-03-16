@@ -22,8 +22,12 @@ def _build_app_for_render() -> SimpleNamespace:
             game_asset=SimpleNamespace(
                 list_by_game=AsyncMock(
                     return_value=[
-                        SimpleNamespace(asset_id=1, shares_total=1000, shares_available=900),
-                        SimpleNamespace(asset_id=2, shares_total=1000, shares_available=700),
+                        SimpleNamespace(
+                            asset_id=1, shares_total=1000, shares_available=900
+                        ),
+                        SimpleNamespace(
+                            asset_id=2, shares_total=1000, shares_available=700
+                        ),
                     ]
                 )
             ),
@@ -48,14 +52,20 @@ def _build_app_for_render() -> SimpleNamespace:
     )
 
 
-def test_refresh_market_message_recreates_large_message_when_generated(monkeypatch) -> None:
+def test_refresh_market_message_recreates_large_message_when_generated(
+    monkeypatch,
+) -> None:
     app = _build_app_for_render()
     monkeypatch.setattr(
         render,
         "build_leaderboard",
-        AsyncMock(return_value=[{"player_id": 10, "display_name": "u", "capital": 1500.0}]),
+        AsyncMock(
+            return_value=[{"player_id": 10, "display_name": "u", "capital": 1500.0}]
+        ),
     )
-    monkeypatch.setattr(render, "generate_market_overview_chart", lambda *_: "chart_b64")
+    monkeypatch.setattr(
+        render, "generate_market_overview_chart", lambda *_: "chart_b64"
+    )
     monkeypatch.setattr(render, "save_runtime_state", AsyncMock())
 
     state = {
@@ -68,8 +78,18 @@ def test_refresh_market_message_recreates_large_message_when_generated(monkeypat
         "status": "running",
         "market_view": "main",
         "assets": {
-            "1": {"asset_id": 1, "name": "Alpha", "current_price": 10.0, "history": [9.0, 10.0]},
-            "2": {"asset_id": 2, "name": "Beta", "current_price": 20.0, "history": [22.0, 20.0]},
+            "1": {
+                "asset_id": 1,
+                "name": "Alpha",
+                "current_price": 10.0,
+                "history": [9.0, 10.0],
+            },
+            "2": {
+                "asset_id": 2,
+                "name": "Beta",
+                "current_price": 20.0,
+                "history": [22.0, 20.0],
+            },
         },
         "market_message_id": 77,
         "market_message_pending": False,
@@ -89,7 +109,7 @@ def test_refresh_market_message_recreates_large_message_when_generated(monkeypat
     assert app.sender.send_message.await_count == 2
     first_payload = app.sender.send_message.await_args_list[0].args[0]
     second_payload = app.sender.send_message.await_args_list[1].args[0]
-    assert "News:" in (first_payload.text or "")
+    assert "Новости:" in (first_payload.text or "")
     assert second_payload.photo_content_b64 == "chart_b64"
 
 
@@ -98,9 +118,13 @@ def test_refresh_market_message_edits_when_no_generated(monkeypatch) -> None:
     monkeypatch.setattr(
         render,
         "build_leaderboard",
-        AsyncMock(return_value=[{"player_id": 10, "display_name": "u", "capital": 1500.0}]),
+        AsyncMock(
+            return_value=[{"player_id": 10, "display_name": "u", "capital": 1500.0}]
+        ),
     )
-    monkeypatch.setattr(render, "generate_market_overview_chart", lambda *_: "chart_b64")
+    monkeypatch.setattr(
+        render, "generate_market_overview_chart", lambda *_: "chart_b64"
+    )
     monkeypatch.setattr(render, "save_runtime_state", AsyncMock())
 
     state = {
@@ -113,14 +137,21 @@ def test_refresh_market_message_edits_when_no_generated(monkeypatch) -> None:
         "status": "running",
         "market_view": "main",
         "assets": {
-            "1": {"asset_id": 1, "name": "Alpha", "current_price": 10.0, "history": [9.0, 10.0]},
+            "1": {
+                "asset_id": 1,
+                "name": "Alpha",
+                "current_price": 10.0,
+                "history": [9.0, 10.0],
+            },
         },
         "market_message_id": 88,
         "market_message_pending": False,
         "market_message_pending_since": None,
     }
 
-    asyncio.run(render.refresh_market_message(app, game_id=1, state=state, generated=None))
+    asyncio.run(
+        render.refresh_market_message(app, game_id=1, state=state, generated=None)
+    )
 
     app.sender.edit_message.assert_awaited_once()
     app.sender.send_message.assert_not_awaited()
@@ -150,7 +181,9 @@ def test_leaderboard_callback_switches_group_view(monkeypatch) -> None:
 
     app = SimpleNamespace(
         market=SimpleNamespace(
-            game=SimpleNamespace(get_by_chat_id=AsyncMock(return_value=SimpleNamespace(id=42)))
+            game=SimpleNamespace(
+                get_by_chat_id=AsyncMock(return_value=SimpleNamespace(id=42))
+            )
         ),
         sender=SimpleNamespace(answer_callback_query=AsyncMock()),
     )
@@ -177,12 +210,22 @@ def test_leaderboard_callback_switches_group_view(monkeypatch) -> None:
     refresh_mock.assert_awaited_once_with(app, 42, runtime_state, generated=None)
 
 
-def test_private_show_private_screen_deletes_previous_message_on_send(monkeypatch) -> None:
+def test_private_show_private_screen_deletes_previous_message_on_send(
+    monkeypatch,
+) -> None:
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
     monkeypatch.setattr(
         private_ui,
         "build_private_screen",
-        AsyncMock(return_value=("caption", keyboard, "chart_b64", {"game_id": 1}, "playing_main")),
+        AsyncMock(
+            return_value=(
+                "caption",
+                keyboard,
+                "chart_b64",
+                {"game_id": 1},
+                "playing_main",
+            )
+        ),
     )
 
     app = SimpleNamespace(
@@ -207,3 +250,95 @@ def test_private_show_private_screen_deletes_previous_message_on_send(monkeypatc
 
     app.sender.send_message.assert_awaited_once()
     app.sender.delete_message.assert_awaited_once_with(555, 321, target_platform="TG")
+
+
+def test_company_screen_disables_buy_button_during_buyback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        private_ui,
+        "get_active_player_context",
+        AsyncMock(
+            return_value=(
+                SimpleNamespace(id=1),
+                SimpleNamespace(id=10),
+                SimpleNamespace(id=20),
+                {
+                    "assets": {
+                        "1": {
+                            "asset_id": 1,
+                            "name": "Alpha",
+                            "current_price": 100.0,
+                            "active_event": {"type": "buyback", "ticks_left": 3},
+                        }
+                    }
+                },
+            )
+        ),
+    )
+    monkeypatch.setattr(private_ui, "generate_asset_price_chart", lambda *_: "chart")
+    monkeypatch.setattr(private_ui, "_tick_seconds", AsyncMock(return_value=10))
+
+    app = SimpleNamespace(
+        market=SimpleNamespace(
+            game_asset=SimpleNamespace(
+                get=AsyncMock(return_value=SimpleNamespace(shares_available=1000))
+            ),
+            portfolio=SimpleNamespace(
+                get_or_create=AsyncMock(return_value=SimpleNamespace(amount=5))
+            ),
+        ),
+        fsm=SimpleNamespace(FSM=SimpleNamespace(PLAYING_ASSET="playing_asset")),
+    )
+
+    _, keyboard, _, _, _ = asyncio.run(
+        private_ui._build_company_screen(app, tg_user_id=777, data={"asset_id": 1})
+    )
+
+    buy_button = keyboard.inline_keyboard[0][0]
+    assert buy_button.text == "❌ Купить"
+    assert buy_button.callback_data == "noop"
+
+
+def test_company_screen_keeps_buy_button_for_regular_state(monkeypatch) -> None:
+    monkeypatch.setattr(
+        private_ui,
+        "get_active_player_context",
+        AsyncMock(
+            return_value=(
+                SimpleNamespace(id=1),
+                SimpleNamespace(id=10),
+                SimpleNamespace(id=20),
+                {
+                    "assets": {
+                        "1": {
+                            "asset_id": 1,
+                            "name": "Alpha",
+                            "current_price": 100.0,
+                            "active_event": None,
+                        }
+                    }
+                },
+            )
+        ),
+    )
+    monkeypatch.setattr(private_ui, "generate_asset_price_chart", lambda *_: "chart")
+    monkeypatch.setattr(private_ui, "_tick_seconds", AsyncMock(return_value=10))
+
+    app = SimpleNamespace(
+        market=SimpleNamespace(
+            game_asset=SimpleNamespace(
+                get=AsyncMock(return_value=SimpleNamespace(shares_available=1000))
+            ),
+            portfolio=SimpleNamespace(
+                get_or_create=AsyncMock(return_value=SimpleNamespace(amount=5))
+            ),
+        ),
+        fsm=SimpleNamespace(FSM=SimpleNamespace(PLAYING_ASSET="playing_asset")),
+    )
+
+    _, keyboard, _, _, _ = asyncio.run(
+        private_ui._build_company_screen(app, tg_user_id=777, data={"asset_id": 1})
+    )
+
+    buy_button = keyboard.inline_keyboard[0][0]
+    assert buy_button.text == "Купить"
+    assert buy_button.callback_data == "private:trade_menu:buy:1"

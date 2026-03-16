@@ -2,11 +2,19 @@ import math
 from asyncio import Lock
 from datetime import UTC, datetime
 
-from app.clients.common.mailbox import InlineKeyboardButton, InlineKeyboardMarkup, MessagePayload
+from app.clients.common.mailbox import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    MessagePayload,
+)
 from app.utils.charts import generate_asset_price_chart, generate_private_main_chart
 from app.utils.log_context import get_update_context
 from app.utils.platform import normalize_platform
-from app.utils.trading import TradeError, build_portfolio_snapshot, get_active_player_context
+from app.utils.trading import (
+    TradeError,
+    build_portfolio_snapshot,
+    get_active_player_context,
+)
 
 _PRIVATE_SCREEN_LOCKS: dict[str, Lock] = {}
 _TRADES_PER_PAGE = 5
@@ -24,20 +32,26 @@ def _get_private_screen_lock(tg_user_id: int, platform: str) -> Lock:
     return lock
 
 
-def _chunk_buttons(buttons: list[InlineKeyboardButton], columns: int) -> list[list[InlineKeyboardButton]]:
-    return [buttons[index:index + columns] for index in range(0, len(buttons), columns)]
+def _chunk_buttons(
+    buttons: list[InlineKeyboardButton], columns: int
+) -> list[list[InlineKeyboardButton]]:
+    return [
+        buttons[index : index + columns] for index in range(0, len(buttons), columns)
+    ]
 
 
 def _shorten_label(text: str, max_length: int = 18) -> str:
     if len(text) <= max_length:
         return text
-    return f"{text[:max_length - 1].rstrip()}..."
+    return f"{text[: max_length - 1].rstrip()}..."
 
 
 def _format_seconds_left(ends_at: str | None) -> str:
     if not ends_at:
         return "--:--"
-    seconds_left = max(0, int((datetime.fromisoformat(ends_at) - datetime.now(UTC)).total_seconds()))
+    seconds_left = max(
+        0, int((datetime.fromisoformat(ends_at) - datetime.now(UTC)).total_seconds())
+    )
     minutes, seconds = divmod(seconds_left, 60)
     return f"{minutes:02d}:{seconds:02d}"
 
@@ -87,14 +101,18 @@ def _companies_per_page(app, data: dict | None = None) -> int:
     return 4 if _is_vk_client(app, data) else 6
 
 
-def _main_chart_assets(app, assets: list[dict], page: int, data: dict | None = None) -> list[dict]:
+def _main_chart_assets(
+    app, assets: list[dict], page: int, data: dict | None = None
+) -> list[dict]:
     page_size = _companies_per_page(app, data)
     start = page * page_size
     end = start + page_size
     return assets[start:end]
 
 
-def _current_page(total_items: int, requested_page: int, page_size: int) -> tuple[int, int]:
+def _current_page(
+    total_items: int, requested_page: int, page_size: int
+) -> tuple[int, int]:
     total_pages = max(1, math.ceil(max(1, total_items) / page_size))
     page = min(max(0, requested_page), total_pages - 1)
     return page, total_pages
@@ -105,30 +123,52 @@ def _build_dm_feed_lines(state: dict) -> list[str]:
     feed = state.get("dm_feed") or {}
     lines: list[str] = []
 
-    for news_item in feed.get("news", []):
-        if tick <= int(news_item.get("display_until", -1)):
-            lines.append(f"News: {news_item.get('text', '')}")
+    lines.extend(
+        f"Новости: {news_item.get('text', '')}"
+        for news_item in feed.get("news", [])
+        if tick <= int(news_item.get("display_until", -1))
+    )
 
     for event_item in feed.get("events", []):
         active_until = int(event_item.get("active_until", -1))
         if tick <= active_until:
             remaining = max(0, active_until - tick)
-            lines.append(
-                f"Event: {event_item.get('asset_name')} "
-                f"{float(event_item.get('delta', 0.0)):+.2f} ({remaining} ticks left)"
-            )
+            event_text = event_item.get("text")
+            if event_text:
+                if int(event_item.get("event_ticks", 0)) > 0 and event_item.get(
+                    "include_remaining", True
+                ):
+                    lines.append(f"Ивент: {event_text} (осталось тиков: {remaining})")
+                else:
+                    lines.append(f"Ивент: {event_text}")
+            elif (
+                event_item.get("asset_name") is not None
+                and event_item.get("delta") is not None
+            ):
+                lines.append(
+                    f"Ивент: {event_item.get('asset_name')} "
+                    f"{float(event_item.get('delta', 0.0)):+.2f} (осталось тиков: {remaining})"
+                )
+            elif event_item.get("asset_name") is not None:
+                lines.append(
+                    f"Ивент: {event_item.get('asset_name')} (осталось тиков: {remaining})"
+                )
         elif tick == active_until + 1:
-            lines.append(f"Event ended: {event_item.get('asset_name')}")
+            ended_text = event_item.get("ended_text")
+            if ended_text:
+                lines.append(f"Ивент завершён: {ended_text}")
+            elif event_item.get("asset_name") is not None:
+                lines.append(f"Ивент завершён: {event_item.get('asset_name')}")
 
     for insider_item in feed.get("insiders", []):
         source_tick = int(insider_item.get("source_tick", tick))
         if tick == source_tick:
             lines.append(
-                f"Insider: {insider_item.get('asset_name')} "
+                f"Инсайд: {insider_item.get('asset_name')} "
                 f"{float(insider_item.get('forecast_percent', 0.0)):+.1f}%"
             )
         elif tick == source_tick + 1:
-            lines.append(f"Insider resolved: {insider_item.get('asset_name')}")
+            lines.append(f"Инсайд отыгран: {insider_item.get('asset_name')}")
 
     return lines
 
@@ -145,35 +185,53 @@ async def _tick_seconds(app, game_id: int) -> int:
     return int((game.settings or {}).get("tick_seconds", 10))
 
 
-async def _build_main_screen(app, tg_user_id: int, data: dict) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
+async def _build_main_screen(
+    app, tg_user_id: int, data: dict
+) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
     platform = _screen_platform(data)
-    user, player, game, state = await get_active_player_context(app, tg_user_id, platform=platform)
+    user, player, game, state = await get_active_player_context(
+        app, tg_user_id, platform=platform
+    )
     _ = user
     assets = sorted(state.get("assets", {}).values(), key=lambda item: item["name"])
     if not assets:
         empty_keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Leave", callback_data="private:leave_confirm")]]
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Выйти", callback_data="private:leave_confirm"
+                    )
+                ]
+            ]
         )
-        return "Market is empty.", empty_keyboard, generate_private_main_chart([], 10), data, app.fsm.FSM.PLAYING_MAIN
+        return (
+            "Рынок пуст.",
+            empty_keyboard,
+            generate_private_main_chart([], 10),
+            data,
+            app.fsm.FSM.PLAYING_MAIN,
+        )
 
     page_size = _companies_per_page(app, data)
-    page, total_pages = _current_page(len(assets), int(data.get("companies_page", 0)), page_size)
+    page, total_pages = _current_page(
+        len(assets), int(data.get("companies_page", 0)), page_size
+    )
     page_assets = _main_chart_assets(app, assets, page, data)
     holdings = await _portfolio_amounts_by_asset(app, player.id)
     snapshot = await build_portfolio_snapshot(app, tg_user_id, platform=platform)
 
     lines = [
-        f"Chat: \"{state.get('chat_title') or 'Unknown chat'}\" (\"{state['chat_id']}\")",
-        f"Tick: {state['tick']} | Time left: {_format_seconds_left(state.get('ends_at'))}",
+        f'Чат: "{state.get("chat_title") or "Неизвестный чат"}" ("{state["chat_id"]}")',
+        f"Тик: {state['tick']} | Осталось времени: {_format_seconds_left(state.get('ends_at'))}",
         "",
-        f"Companies page: {page + 1}/{total_pages}",
+        f"Страница компаний: {page + 1}/{total_pages}",
     ]
 
     for asset in page_assets:
         owned = int(holdings.get(int(asset["asset_id"]), 0))
         lines.append(
             f"{asset['name']} -- {float(asset['current_price']):.2f} "
-            f"({_asset_change_percent(asset):+.1f}%) ({owned} shares owned)"
+            f"({_asset_change_percent(asset):+.1f}%) (в портфеле: {owned})"
         )
 
     feed_lines = _build_dm_feed_lines(state)
@@ -184,8 +242,8 @@ async def _build_main_screen(app, tg_user_id: int, data: dict) -> tuple[str, Inl
     lines.extend(
         [
             "",
-            f"Total capital: {float(snapshot['total_capital']):.2f}",
-            f"Balance: {float(snapshot['balance']):.2f}",
+            f"Общий капитал: {float(snapshot['total_capital']):.2f}",
+            f"Баланс: {float(snapshot['balance']):.2f}",
         ]
     )
 
@@ -201,18 +259,28 @@ async def _build_main_screen(app, tg_user_id: int, data: dict) -> tuple[str, Inl
     if total_pages > 1:
         rows.append(
             [
-                InlineKeyboardButton(text="<-", callback_data="private:companies_page:-1"),
-                InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="noop"),
-                InlineKeyboardButton(text="->", callback_data="private:companies_page:1"),
+                InlineKeyboardButton(
+                    text="<-", callback_data="private:companies_page:-1"
+                ),
+                InlineKeyboardButton(
+                    text=f"{page + 1}/{total_pages}", callback_data="noop"
+                ),
+                InlineKeyboardButton(
+                    text="->", callback_data="private:companies_page:1"
+                ),
             ]
         )
     rows.append(
         [
-            InlineKeyboardButton(text="Portfolio", callback_data="private:portfolio"),
-            InlineKeyboardButton(text="Trade History", callback_data="private:history"),
+            InlineKeyboardButton(text="Портфель", callback_data="private:portfolio"),
+            InlineKeyboardButton(
+                text="История сделок", callback_data="private:history"
+            ),
         ]
     )
-    rows.append([InlineKeyboardButton(text="Leave", callback_data="private:leave_confirm")])
+    rows.append(
+        [InlineKeyboardButton(text="Выйти", callback_data="private:leave_confirm")]
+    )
 
     chart = generate_private_main_chart(page_assets, await _tick_seconds(app, game.id))
     new_data = dict(data)
@@ -226,8 +294,12 @@ async def _build_main_screen(app, tg_user_id: int, data: dict) -> tuple[str, Inl
     )
 
 
-async def _build_company_screen(app, tg_user_id: int, data: dict) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
-    _, player, game, state = await get_active_player_context(app, tg_user_id, platform=_screen_platform(data))
+async def _build_company_screen(
+    app, tg_user_id: int, data: dict
+) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
+    _, player, game, state = await get_active_player_context(
+        app, tg_user_id, platform=_screen_platform(data)
+    )
     asset_id = int(data.get("asset_id", 0))
     asset_state = state.get("assets", {}).get(str(asset_id))
     if asset_state is None:
@@ -239,20 +311,33 @@ async def _build_company_screen(app, tg_user_id: int, data: dict) -> tuple[str, 
     text = _safe_caption(
         "\n".join(
             [
-                f"Company: {asset_state['name']}",
-                f"Price per share: {float(asset_state['current_price']):.2f}",
-                f"Available shares: {game_asset.shares_available if game_asset else 0}",
-                f"Owned shares: {portfolio.amount}",
+                f"Компания: {asset_state['name']}",
+                f"Цена за акцию: {float(asset_state['current_price']):.2f}",
+                f"Доступно акций: {game_asset.shares_available if game_asset else 0}",
+                f"В портфеле: {portfolio.amount}",
             ]
         )
+    )
+    active_event = asset_state.get("active_event") or {}
+    buyback_active = (
+        str(active_event.get("type") or "") == "buyback"
+        and int(active_event.get("ticks_left", 0) or 0) > 0
+    )
+    buy_button = InlineKeyboardButton(
+        text="❌ Купить" if buyback_active else "Купить",
+        callback_data="noop"
+        if buyback_active
+        else f"private:trade_menu:buy:{asset_id}",
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Buy", callback_data=f"private:trade_menu:buy:{asset_id}"),
-                InlineKeyboardButton(text="Sell", callback_data=f"private:trade_menu:sell:{asset_id}"),
+                buy_button,
+                InlineKeyboardButton(
+                    text="Продать", callback_data=f"private:trade_menu:sell:{asset_id}"
+                ),
             ],
-            [InlineKeyboardButton(text="Back", callback_data="private:main")],
+            [InlineKeyboardButton(text="Назад", callback_data="private:main")],
         ]
     )
     chart = generate_asset_price_chart(asset_state, await _tick_seconds(app, game.id))
@@ -261,8 +346,12 @@ async def _build_company_screen(app, tg_user_id: int, data: dict) -> tuple[str, 
     return text, keyboard, chart, new_data, app.fsm.FSM.PLAYING_ASSET
 
 
-async def _build_trade_screen(app, tg_user_id: int, data: dict) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
-    _, player, game, state = await get_active_player_context(app, tg_user_id, platform=_screen_platform(data))
+async def _build_trade_screen(
+    app, tg_user_id: int, data: dict
+) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
+    _, player, game, state = await get_active_player_context(
+        app, tg_user_id, platform=_screen_platform(data)
+    )
     asset_id = int(data.get("asset_id", 0))
     side = data.get("trade_side", "buy")
     if side not in {"buy", "sell"}:
@@ -275,39 +364,67 @@ async def _build_trade_screen(app, tg_user_id: int, data: dict) -> tuple[str, In
     game_asset = await app.market.game_asset.get(game.id, asset_id)
     portfolio = await app.market.portfolio.get_or_create(player.id, asset_id)
 
-    title = "Buy menu" if side == "buy" else "Sell menu"
+    title = "Покупка" if side == "buy" else "Продажа"
     text = _safe_caption(
         "\n".join(
             [
                 f"{title}: {asset_state['name']}",
-                f"Price per share: {float(asset_state['current_price']):.2f}",
-                f"Available shares: {game_asset.shares_available if game_asset else 0}",
-                f"Owned shares: {portfolio.amount}",
-                f"Balance: {float(player.balance):.2f}",
+                f"Цена за акцию: {float(asset_state['current_price']):.2f}",
+                f"Доступно акций: {game_asset.shares_available if game_asset else 0}",
+                f"В портфеле: {portfolio.amount}",
+                f"Баланс: {float(player.balance):.2f}",
             ]
         )
     )
 
     fixed_buttons = [
-        InlineKeyboardButton(text="1", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:1"),
-        InlineKeyboardButton(text="2", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:2"),
-        InlineKeyboardButton(text="5", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:5"),
-        InlineKeyboardButton(text="10", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:10"),
-        InlineKeyboardButton(text="MAX", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:max"),
+        InlineKeyboardButton(
+            text="1", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:1"
+        ),
+        InlineKeyboardButton(
+            text="2", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:2"
+        ),
+        InlineKeyboardButton(
+            text="5", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:5"
+        ),
+        InlineKeyboardButton(
+            text="10", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:10"
+        ),
+        InlineKeyboardButton(
+            text="МАКС", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:max"
+        ),
     ]
 
     if side == "buy":
         fraction_buttons = [
-            InlineKeyboardButton(text="1/4 cash", callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:25"),
-            InlineKeyboardButton(text="1/2 cash", callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:50"),
-            InlineKeyboardButton(text="All-in", callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:100"),
+            InlineKeyboardButton(
+                text="1/4 баланса",
+                callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:25",
+            ),
+            InlineKeyboardButton(
+                text="1/2 баланса",
+                callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:50",
+            ),
+            InlineKeyboardButton(
+                text="Всё",
+                callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:100",
+            ),
         ]
         fsm_state = app.fsm.FSM.PLAYING_BUY
     else:
         fraction_buttons = [
-            InlineKeyboardButton(text="1/4 holdings", callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:25"),
-            InlineKeyboardButton(text="1/2 holdings", callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:50"),
-            InlineKeyboardButton(text="All-in", callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:100"),
+            InlineKeyboardButton(
+                text="1/4 позиции",
+                callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:25",
+            ),
+            InlineKeyboardButton(
+                text="1/2 позиции",
+                callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:50",
+            ),
+            InlineKeyboardButton(
+                text="Всё",
+                callback_data=f"private:trade_exec:{side}:{asset_id}:fraction:100",
+            ),
         ]
         fsm_state = app.fsm.FSM.PLAYING_SELL
 
@@ -315,7 +432,11 @@ async def _build_trade_screen(app, tg_user_id: int, data: dict) -> tuple[str, In
         inline_keyboard=[
             fixed_buttons,
             fraction_buttons,
-            [InlineKeyboardButton(text="Back", callback_data=f"private:company:{asset_id}")],
+            [
+                InlineKeyboardButton(
+                    text="Назад", callback_data=f"private:company:{asset_id}"
+                )
+            ],
         ]
     )
     chart = generate_asset_price_chart(asset_state, await _tick_seconds(app, game.id))
@@ -325,38 +446,50 @@ async def _build_trade_screen(app, tg_user_id: int, data: dict) -> tuple[str, In
     return text, keyboard, chart, new_data, fsm_state
 
 
-async def _build_portfolio_screen(app, tg_user_id: int, data: dict) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
+async def _build_portfolio_screen(
+    app, tg_user_id: int, data: dict
+) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
     platform = _screen_platform(data)
-    _, _, game, state = await get_active_player_context(app, tg_user_id, platform=platform)
+    _, _, game, state = await get_active_player_context(
+        app, tg_user_id, platform=platform
+    )
     snapshot = await build_portfolio_snapshot(app, tg_user_id, platform=platform)
     lines = sorted(snapshot["lines"], key=lambda line: line["asset_name"])
 
-    page, total_pages = _current_page(len(lines), int(data.get("portfolio_page", 0)), _PORTFOLIO_PER_PAGE)
-    page_lines = lines[page * _PORTFOLIO_PER_PAGE:(page + 1) * _PORTFOLIO_PER_PAGE]
+    page, total_pages = _current_page(
+        len(lines), int(data.get("portfolio_page", 0)), _PORTFOLIO_PER_PAGE
+    )
+    page_lines = lines[page * _PORTFOLIO_PER_PAGE : (page + 1) * _PORTFOLIO_PER_PAGE]
 
     text_lines = [
-        f"Total capital: {float(snapshot['total_capital']):.2f}",
-        f"Balance: {float(snapshot['balance']):.2f}",
+        f"Общий капитал: {float(snapshot['total_capital']):.2f}",
+        f"Баланс: {float(snapshot['balance']):.2f}",
         "",
     ]
     if not page_lines:
-        text_lines.append("Portfolio is empty.")
+        text_lines.append("Портфель пуст.")
     else:
-        for line in page_lines:
-            text_lines.append(
-                f"{line['asset_name']} -- {line['amount']} ({float(line['capital']):.2f})"
-            )
+        text_lines.extend(
+            f"{line['asset_name']} -- {line['amount']} ({float(line['capital']):.2f})"
+            for line in page_lines
+        )
 
     rows: list[list[InlineKeyboardButton]] = []
     if total_pages > 1:
         rows.append(
             [
-                InlineKeyboardButton(text="<-", callback_data="private:portfolio_page:-1"),
-                InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="noop"),
-                InlineKeyboardButton(text="->", callback_data="private:portfolio_page:1"),
+                InlineKeyboardButton(
+                    text="<-", callback_data="private:portfolio_page:-1"
+                ),
+                InlineKeyboardButton(
+                    text=f"{page + 1}/{total_pages}", callback_data="noop"
+                ),
+                InlineKeyboardButton(
+                    text="->", callback_data="private:portfolio_page:1"
+                ),
             ]
         )
-    rows.append([InlineKeyboardButton(text="Back", callback_data="private:main")])
+    rows.append([InlineKeyboardButton(text="Назад", callback_data="private:main")])
 
     assets = sorted(state.get("assets", {}).values(), key=lambda item: item["name"])
     companies_page = int(data.get("companies_page", 0))
@@ -373,34 +506,51 @@ async def _build_portfolio_screen(app, tg_user_id: int, data: dict) -> tuple[str
     )
 
 
-async def _build_history_screen(app, tg_user_id: int, data: dict) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
-    _, player, game, state = await get_active_player_context(app, tg_user_id, platform=_screen_platform(data))
+async def _build_history_screen(
+    app, tg_user_id: int, data: dict
+) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
+    _, player, game, state = await get_active_player_context(
+        app, tg_user_id, platform=_screen_platform(data)
+    )
     deals = await app.market.deal.list_by_player(player.id, limit=200)
 
-    page, total_pages = _current_page(len(deals), int(data.get("history_page", 0)), _TRADES_PER_PAGE)
-    page_deals = deals[page * _TRADES_PER_PAGE:(page + 1) * _TRADES_PER_PAGE]
+    page, total_pages = _current_page(
+        len(deals), int(data.get("history_page", 0)), _TRADES_PER_PAGE
+    )
+    page_deals = deals[page * _TRADES_PER_PAGE : (page + 1) * _TRADES_PER_PAGE]
 
     lines = []
     if not page_deals:
-        lines.append("No trades yet.")
+        lines.append("Сделок пока нет.")
     else:
         for deal in page_deals:
             asset = await app.data.asset.get_by_id(deal.asset_id)
-            asset_name = asset.name if asset else f"asset:{deal.asset_id}"
+            asset_name = asset.name if asset else f"актив:{deal.asset_id}"
             money = round(float(deal.amount) * float(deal.price), 2)
-            money_label = f"spent {money:.2f}" if deal.type.value == "buy" else f"received {money:.2f}"
-            lines.append(f"{deal.type.value} -- {asset_name} -- {deal.amount} -- {money_label}")
+            deal_label = "покупка" if deal.type.value == "buy" else "продажа"
+            money_label = (
+                f"потрачено {money:.2f}"
+                if deal.type.value == "buy"
+                else f"получено {money:.2f}"
+            )
+            lines.append(
+                f"{deal_label} -- {asset_name} -- {deal.amount} -- {money_label}"
+            )
 
     rows: list[list[InlineKeyboardButton]] = []
     if total_pages > 1:
         rows.append(
             [
-                InlineKeyboardButton(text="<-", callback_data="private:history_page:-1"),
-                InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="noop"),
+                InlineKeyboardButton(
+                    text="<-", callback_data="private:history_page:-1"
+                ),
+                InlineKeyboardButton(
+                    text=f"{page + 1}/{total_pages}", callback_data="noop"
+                ),
                 InlineKeyboardButton(text="->", callback_data="private:history_page:1"),
             ]
         )
-    rows.append([InlineKeyboardButton(text="Back", callback_data="private:main")])
+    rows.append([InlineKeyboardButton(text="Назад", callback_data="private:main")])
 
     assets = sorted(state.get("assets", {}).values(), key=lambda item: item["name"])
     companies_page = int(data.get("companies_page", 0))
@@ -417,22 +567,28 @@ async def _build_history_screen(app, tg_user_id: int, data: dict) -> tuple[str, 
     )
 
 
-async def _build_leave_confirm_screen(app, tg_user_id: int, data: dict) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
-    _, _, game, state = await get_active_player_context(app, tg_user_id, platform=_screen_platform(data))
+async def _build_leave_confirm_screen(
+    app, tg_user_id: int, data: dict
+) -> tuple[str, InlineKeyboardMarkup, str, dict, str]:
+    _, _, game, state = await get_active_player_context(
+        app, tg_user_id, platform=_screen_platform(data)
+    )
     assets = sorted(state.get("assets", {}).values(), key=lambda item: item["name"])
     companies_page = int(data.get("companies_page", 0))
     chart_assets = _main_chart_assets(app, assets, companies_page)
     chart = generate_private_main_chart(chart_assets, await _tick_seconds(app, game.id))
 
     text = (
-        "Do you really want to leave the game?\n"
-        "Your account will be frozen, and your capital will stay in leaderboard."
+        "Ты точно хочешь покинуть игру?\n"
+        "Аккаунт будет заморожен, а капитал останется в лидерборде."
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Confirm leave", callback_data="private:leave_yes"),
-                InlineKeyboardButton(text="Cancel", callback_data="private:main"),
+                InlineKeyboardButton(
+                    text="Подтвердить выход", callback_data="private:leave_yes"
+                ),
+                InlineKeyboardButton(text="Отмена", callback_data="private:main"),
             ]
         ]
     )
@@ -476,7 +632,13 @@ async def show_private_screen(
     async with lock:
         data = dict(data or {})
         data["_client_platform"] = resolved_platform
-        caption, keyboard, chart_content_b64, new_data, fsm_state = await build_private_screen(
+        (
+            caption,
+            keyboard,
+            chart_content_b64,
+            new_data,
+            fsm_state,
+        ) = await build_private_screen(
             app,
             tg_user_id,
             screen,
@@ -548,7 +710,9 @@ async def show_private_screen(
                 target_platform=resolved_platform,
             )
 
-        await app.fsm.set_state(tg_user_id, fsm_state, pending_data, platform=resolved_platform)
+        await app.fsm.set_state(
+            tg_user_id, fsm_state, pending_data, platform=resolved_platform
+        )
         return None
 
 
@@ -562,12 +726,14 @@ async def compute_trade_amount(
     platform: str | None = None,
 ) -> int:
     if side not in {"buy", "sell"}:
-        raise TradeError("Invalid trade side.")
+        raise TradeError("Некорректная сторона сделки.")
 
-    _, player, game, state = await get_active_player_context(app, tg_user_id, platform=platform)
+    _, player, game, state = await get_active_player_context(
+        app, tg_user_id, platform=platform
+    )
     asset_state = state.get("assets", {}).get(str(asset_id))
     if asset_state is None:
-        raise TradeError("Asset is not available in this game.")
+        raise TradeError("Этот актив недоступен в текущей игре.")
 
     price = float(asset_state["current_price"])
     game_asset = await app.market.game_asset.get(game.id, asset_id)
@@ -577,13 +743,15 @@ async def compute_trade_amount(
         if value == "max":
             if side == "buy":
                 by_balance = int(player.balance // price)
-                return max(0, min(by_balance, game_asset.shares_available if game_asset else 0))
+                return max(
+                    0, min(by_balance, game_asset.shares_available if game_asset else 0)
+                )
             return max(0, int(portfolio.amount))
         amount = int(value)
         return max(0, amount)
 
     if mode != "fraction":
-        raise TradeError("Invalid trade mode.")
+        raise TradeError("Некорректный режим сделки.")
 
     fraction = max(0.0, min(1.0, int(value) / 100.0))
     if side == "buy":

@@ -22,7 +22,9 @@ class SenderRouter:
             return self.vk_sender
         raise RuntimeError("No active senders configured")
 
-    def _resolve_platform(self, payload: MessagePayload | None = None, explicit: str | None = None) -> str:
+    def _resolve_platform(
+        self, payload: MessagePayload | None = None, explicit: str | None = None
+    ) -> str:
         if explicit:
             return normalize_platform(explicit)
         if payload and payload.target_platform:
@@ -42,7 +44,9 @@ class SenderRouter:
         payload.target_platform = platform
         await self._sender_for_platform(platform).edit_message(payload)
 
-    async def delete_message(self, chat_id: int, message_id: int, *, target_platform: str | None = None) -> None:
+    async def delete_message(
+        self, chat_id: int, message_id: int, *, target_platform: str | None = None
+    ) -> None:
         platform = self._resolve_platform(explicit=target_platform)
         await self._sender_for_platform(platform).delete_message(chat_id, message_id)
 
