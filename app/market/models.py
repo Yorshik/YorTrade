@@ -1,9 +1,8 @@
-from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, JSON, BigInteger, String
 from sqlalchemy.sql import func
 import enum
 
-Base = declarative_base()
+from app.store.database.base import Base
 
 
 class GameStatus(enum.Enum):
@@ -15,8 +14,10 @@ class GameStatus(enum.Enum):
 class Game(Base):
     __tablename__ = 'games'
     id = Column(Integer, primary_key=True)
-    chat_id = Column(Integer, unique=True, nullable=False)
-    status = Column(Enum(GameStatus), default=GameStatus.PENDING)
+    chat_id = Column(BigInteger, nullable=False)
+    host_id = Column(BigInteger, nullable=False)
+    platform = Column(String, nullable=False, default="TG")
+    status = Column(Enum(GameStatus), nullable=False, default=GameStatus.PENDING)
     settings = Column(JSON, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
@@ -28,6 +29,8 @@ class GameAsset(Base):
     asset_id = Column(Integer, ForeignKey('assets.id'), primary_key=True)
     start_price = Column(Float, nullable=False)
     volatility = Column(Float, nullable=False)
+    shares_total = Column(Integer, nullable=False, default=1000)
+    shares_available = Column(Integer, nullable=False, default=1000)
 
 
 class Portfolio(Base):

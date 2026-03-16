@@ -1,9 +1,12 @@
 import asyncio
 import logging
+from time import monotonic
 from typing import Optional
 
 import aiohttp
+from pydantic import ValidationError
 
+from app.clients.tg.mailbox import Update
 from app.store.queue.accessor import RabbitMQAccessor
 
 logger = logging.getLogger(__name__)
@@ -15,8 +18,8 @@ class Poller:
         self.rabbitmq: RabbitMQAccessor = self.app.rabbitmq
         self.session: aiohttp.ClientSession = self.app.session
         self.bot_token = self.app.config.TG_TOKEN
-        
-        self.api_url = f"https://api.telegram.org/bot{self.bot_token}"
+
+        self.api_url = f"{self.app.config.TG_API_URL}/bot{self.bot_token}"
         self._running = False
         self._task: Optional[asyncio.Task] = None
 
@@ -42,10 +45,38 @@ class Poller:
         while self._running:
             updates_response = await self._get_updates(offset)
             if updates_response and updates_response.get("ok") and updates_response.get("result"):
-                logger.info(f"Получено {len(updates_response['result'])} обновлений.")
-                for update in updates_response["result"]:
+                updates = updates_response["result"]
+                first_id = updates[0]["update_id"]
+                last_id = updates[-1]["update_id"]
+                logger.info("Poller batch size=%s update_id_range=%s..%s", len(updates), first_id, last_id)
+                for update in updates:
                     offset = update["update_id"] + 1
-                    logger.info(f"Отправка обновления {update['update_id']} в очередь.")
+                    update["trace_started_at"] = monotonic()
+                    update["source_platform"] = "TG"
+                    try:
+                        Update.model_validate(update)
+                    except ValidationError as error:
+                        logger.error(
+                            "Poller skipped invalid telegram update_id=%s err=%s payload=%s",
+                            update.get("update_id"),
+                            error,
+                            update,
+                        )
+                        continue
+                    message = update.get("message") or {}
+                    callback = update.get("callback_query") or {}
+                    from_user = message.get("from") or callback.get("from") or {}
+                    chat = message.get("chat") or (callback.get("message") or {}).get("chat") or {}
+                    callback_data = callback.get("data")
+                    logger.info(
+                        "Poller enqueue update_id=%s kind=%s chat_id=%s from_user=%s text=%s callback=%s",
+                        update.get("update_id"),
+                        "callback_query" if "callback_query" in update else "message",
+                        chat.get("id"),
+                        from_user.get("id"),
+                        (message.get("text") or "")[:120],
+                        (callback_data or "")[:120],
+                    )
                     await self.rabbitmq.publish(updates_queue_name, update)
             else:
                 await asyncio.sleep(1)

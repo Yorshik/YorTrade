@@ -46,6 +46,17 @@ class RabbitMQAccessor:
         await self.get_queue(queue_name)
         
         body = json.dumps(message).encode('utf-8')
+        logger.info(
+            "Rabbit publish queue=%s size_bytes=%s update_id=%s action=%s chat_id=%s source_update=%s source_user=%s source_platform=%s",
+            queue_name,
+            len(body),
+            message.get("update_id"),
+            message.get("action"),
+            message.get("chat_id"),
+            message.get("source_update_id"),
+            message.get("source_user_id"),
+            message.get("source_platform"),
+        )
         await self.channel.default_exchange.publish(
             aio_pika.Message(
                 body=body,
