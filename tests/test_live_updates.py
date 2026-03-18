@@ -45,3 +45,79 @@ def test_refresh_private_views_bootstraps_missing_fsm_state(monkeypatch) -> None
         {"game_id": 42},
         target_platform="VK",
     )
+
+
+def test_update_dm_feed_upserts_event_by_event_id() -> None:
+    state = {"tick": 10}
+    generated = {
+        "events": [
+            {
+                "event_id": "evt:10:tpl_1",
+                "type": "market_event",
+                "template_id": "tpl_1",
+                "text": "обвал рынка",
+                "ticks_left": 3,
+                "include_remaining": True,
+            }
+        ]
+    }
+
+    first_changed = live_updates._update_dm_feed(state, generated)
+    assert first_changed is True
+    assert len(state["dm_feed"]["events"]) == 1
+    assert state["dm_feed"]["events"][0]["active_until"] == 13
+
+    state["tick"] = 11
+    generated["events"][0]["ticks_left"] = 2
+    second_changed = live_updates._update_dm_feed(state, generated)
+    assert second_changed is True
+    assert len(state["dm_feed"]["events"]) == 1
+    assert state["dm_feed"]["events"][0]["source_tick"] == 11
+    assert state["dm_feed"]["events"][0]["active_until"] == 13
+
+
+def test_update_dm_feed_removes_event_when_ticks_left_zero() -> None:
+    state = {"tick": 20}
+    generated = {
+        "events": [
+            {
+                "event_id": "evt:20:tpl_1",
+                "type": "market_event",
+                "template_id": "tpl_1",
+                "text": "обвал рынка",
+                "ticks_left": 1,
+                "include_remaining": True,
+            }
+        ]
+    }
+
+    assert live_updates._update_dm_feed(state, generated) is True
+    assert len(state["dm_feed"]["events"]) == 1
+
+    state["tick"] = 21
+    generated["events"][0]["ticks_left"] = 0
+    assert live_updates._update_dm_feed(state, generated) is True
+    assert state["dm_feed"]["events"] == []
+
+
+def test_update_dm_feed_drops_zero_remaining_events_without_generated() -> None:
+    state = {
+        "tick": 30,
+        "dm_feed": {
+            "news": [],
+            "events": [
+                {
+                    "type": "market_event",
+                    "text": "обвал рынка",
+                    "active_until": 30,
+                    "display_until": 31,
+                    "event_ticks": 0,
+                    "include_remaining": True,
+                }
+            ],
+            "insiders": [],
+        },
+    }
+
+    assert live_updates._update_dm_feed(state, generated=None) is True
+    assert state["dm_feed"]["events"] == []

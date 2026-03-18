@@ -75,7 +75,7 @@ async def _find_active_player_without_runtime(
 async def execute_trade(
     app,
     external_user_id: int,
-    asset_id: int,
+    asset_id: int | str,
     amount: int,
     deal_type: DealType,
     platform: str | None = None,
@@ -86,11 +86,25 @@ async def execute_trade(
     _, player, game, state = await get_active_player_context(
         app, external_user_id, platform=platform
     )
-    asset_state = state.get("assets", {}).get(str(asset_id))
+    assets_state = state.get("assets", {})
+    asset_state = assets_state.get(str(asset_id))
+    resolved_asset_id = None
+    if asset_state is not None:
+        resolved_asset_id = int(asset_state.get("asset_id", asset_id))
+    elif not str(asset_id).isdigit():
+        for candidate in assets_state.values():
+            if str(candidate.get("company_id") or "") == str(asset_id):
+                asset_state = candidate
+                resolved_asset_id = int(candidate["asset_id"])
+                break
+    else:
+        resolved_asset_id = int(asset_id)
     if asset_state is None:
         raise TradeError("Этот актив не участвует в текущей игре.")
+    if resolved_asset_id is None:
+        resolved_asset_id = int(asset_state["asset_id"])
 
-    game_asset = await app.market.game_asset.get(game.id, asset_id)
+    game_asset = await app.market.game_asset.get(game.id, resolved_asset_id)
     if game_asset is None:
         raise TradeError("Актив игры не найден.")
 
@@ -107,7 +121,7 @@ async def execute_trade(
         multiplier = float(active_event.get("sell_multiplier", 1.5))
         price = round(price * multiplier, 2)
     total_value = round(price * amount, 2)
-    portfolio = await app.market.portfolio.get_or_create(player.id, asset_id)
+    portfolio = await app.market.portfolio.get_or_create(player.id, resolved_asset_id)
     before_snapshot = None
     if track_achievements:
         before_snapshot = await build_player_capital_snapshot(
@@ -145,7 +159,7 @@ async def execute_trade(
     await app.market.deal.create(
         player_id=player.id,
         game_id=game.id,
-        asset_id=asset_id,
+        asset_id=resolved_asset_id,
         deal_type=deal_type,
         amount=amount,
         price=price,

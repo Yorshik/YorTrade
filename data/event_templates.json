@@ -1,0 +1,287 @@
+[
+  {
+    "id": "event_01",
+    "title": "Apple выпускает новый чип",
+    "description": "Производительность нового процессора превосходит аналоги",
+    "effects": [
+      {"company_id": "apple", "direction": "up", "strength": 0.9},
+      {"company_id": "intel", "direction": "down", "strength": 0.7},
+      {"company_id": "samsung", "direction": "down", "strength": 0.3}
+    ],
+    "duration_ticks": 6,
+    "image_id": "chip_launch"
+  },
+  {
+    "id": "event_02",
+    "title": "Microsoft усиливает облачные сервисы",
+    "description": "Новый дата-центр увеличивает мощности",
+    "effects": [
+      {"company_id": "microsoft", "direction": "up", "strength": 0.8},
+      {"company_id": "amazon", "direction": "down", "strength": 0.4}
+    ],
+    "duration_ticks": 6,
+    "image_id": "cloud_growth"
+  },
+  {
+    "id": "event_03",
+    "title": "Google обновляет поиск",
+    "description": "Растёт рекламная выручка",
+    "effects": [
+      {"company_id": "google", "direction": "up", "strength": 0.7},
+      {"company_id": "meta", "direction": "down", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "search_update"
+  },
+  {
+    "id": "event_04",
+    "title": "Проблемы логистики у Amazon",
+    "description": "Сбои в доставке",
+    "effects": [
+      {"company_id": "amazon", "direction": "down", "strength": 0.8},
+      {"company_id": "netflix", "direction": "up", "strength": 0.2}
+    ],
+    "duration_ticks": 5,
+    "image_id": "logistics_issue"
+  },
+  {
+    "id": "event_05",
+    "title": "Tesla снижает цены",
+    "description": "Агрессивный захват рынка",
+    "effects": [
+      {"company_id": "tesla", "direction": "up", "strength": 0.7},
+      {"company_id": "samsung", "direction": "down", "strength": 0.2}
+    ],
+    "duration_ticks": 4,
+    "image_id": "price_war"
+  },
+
+  {
+    "id": "event_06",
+    "title": "Рост спроса на AI-чипы",
+    "description": "Контракты на GPU увеличиваются",
+    "effects": [
+      {"company_id": "nvidia", "direction": "up", "strength": 1.0},
+      {"company_id": "intel", "direction": "down", "strength": 0.5},
+      {"company_id": "microsoft", "direction": "up", "strength": 0.4}
+    ],
+    "duration_ticks": 6,
+    "image_id": "ai_boom"
+  },
+  {
+    "id": "event_07",
+    "title": "Meta теряет аудиторию",
+    "description": "Снижение активности пользователей",
+    "effects": [
+      {"company_id": "meta", "direction": "down", "strength": 0.8},
+      {"company_id": "google", "direction": "up", "strength": 0.2}
+    ],
+    "duration_ticks": 5,
+    "image_id": "user_decline"
+  },
+  {
+    "id": "event_08",
+    "title": "Хитовый сериал Netflix",
+    "description": "Резкий рост подписок",
+    "effects": [
+      {"company_id": "netflix", "direction": "up", "strength": 0.9},
+      {"company_id": "amazon", "direction": "down", "strength": 0.2}
+    ],
+    "duration_ticks": 4,
+    "image_id": "hit_show"
+  },
+  {
+    "id": "event_09",
+    "title": "Intel выпускает новый CPU",
+    "description": "Попытка вернуть рынок",
+    "effects": [
+      {"company_id": "intel", "direction": "up", "strength": 0.6},
+      {"company_id": "nvidia", "direction": "down", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "cpu_launch"
+  },
+  {
+    "id": "event_10",
+    "title": "Samsung увеличивает производство",
+    "description": "Рост предложения чипов",
+    "effects": [
+      {"company_id": "samsung", "direction": "up", "strength": 0.7},
+      {"company_id": "nvidia", "direction": "down", "strength": 0.2}
+    ],
+    "duration_ticks": 5,
+    "image_id": "chip_factory"
+  },
+
+  {
+    "id": "event_11",
+    "title": "Скандал с приватностью Apple",
+    "description": "Проблемы с доверием пользователей",
+    "effects": [
+      {"company_id": "apple", "direction": "down", "strength": 0.7},
+      {"company_id": "google", "direction": "up", "strength": 0.2}
+    ],
+    "duration_ticks": 4,
+    "image_id": "privacy_scandal"
+  },
+  {
+    "id": "event_12",
+    "title": "Microsoft покупает AI-стартап",
+    "description": "Усиление позиций",
+    "effects": [
+      {"company_id": "microsoft", "direction": "up", "strength": 0.9},
+      {"company_id": "google", "direction": "down", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "ai_acquisition"
+  },
+  {
+    "id": "event_13",
+    "title": "Штраф Google",
+    "description": "Антимонопольное давление",
+    "effects": [
+      {"company_id": "google", "direction": "down", "strength": 0.8},
+      {"company_id": "microsoft", "direction": "up", "strength": 0.3}
+    ],
+    "duration_ticks": 4,
+    "image_id": "antitrust_fine"
+  },
+  {
+    "id": "event_14",
+    "title": "Автоматизация складов Amazon",
+    "description": "Снижение затрат",
+    "effects": [
+      {"company_id": "amazon", "direction": "up", "strength": 0.8},
+      {"company_id": "tesla", "direction": "up", "strength": 0.2}
+    ],
+    "duration_ticks": 5,
+    "image_id": "warehouse_ai"
+  },
+  {
+    "id": "event_15",
+    "title": "Отзыв автомобилей Tesla",
+    "description": "Проблемы с безопасностью",
+    "effects": [
+      {"company_id": "tesla", "direction": "down", "strength": 0.9},
+      {"company_id": "samsung", "direction": "down", "strength": 0.2}
+    ],
+    "duration_ticks": 4,
+    "image_id": "recall"
+  },
+
+  {
+    "id": "event_16",
+    "title": "Новые GPU Nvidia",
+    "description": "Рост в гейминге и AI",
+    "effects": [
+      {"company_id": "nvidia", "direction": "up", "strength": 0.9},
+      {"company_id": "intel", "direction": "down", "strength": 0.4}
+    ],
+    "duration_ticks": 5,
+    "image_id": "gpu_release"
+  },
+  {
+    "id": "event_17",
+    "title": "Новая соцсеть Meta",
+    "description": "Попытка вернуть пользователей",
+    "effects": [
+      {"company_id": "meta", "direction": "up", "strength": 0.6},
+      {"company_id": "google", "direction": "down", "strength": 0.2}
+    ],
+    "duration_ticks": 5,
+    "image_id": "new_social"
+  },
+  {
+    "id": "event_18",
+    "title": "Netflix теряет подписчиков",
+    "description": "Конкуренция усиливается",
+    "effects": [
+      {"company_id": "netflix", "direction": "down", "strength": 0.8},
+      {"company_id": "amazon", "direction": "up", "strength": 0.3}
+    ],
+    "duration_ticks": 4,
+    "image_id": "subscriber_loss"
+  },
+  {
+    "id": "event_19",
+    "title": "Intel теряет контракт",
+    "description": "Клиенты уходят к конкурентам",
+    "effects": [
+      {"company_id": "intel", "direction": "down", "strength": 0.8},
+      {"company_id": "nvidia", "direction": "up", "strength": 0.4}
+    ],
+    "duration_ticks": 5,
+    "image_id": "contract_loss"
+  },
+  {
+    "id": "event_20",
+    "title": "Партнёрство Samsung",
+    "description": "Расширение рынка",
+    "effects": [
+      {"company_id": "samsung", "direction": "up", "strength": 0.7},
+      {"company_id": "apple", "direction": "up", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "partnership"
+  },
+
+  {
+    "id": "event_21",
+    "title": "Рост продаж Apple",
+    "description": "Высокий спрос",
+    "effects": [
+      {"company_id": "apple", "direction": "up", "strength": 0.8},
+      {"company_id": "samsung", "direction": "up", "strength": 0.2}
+    ],
+    "duration_ticks": 4,
+    "image_id": "sales_growth"
+  },
+  {
+    "id": "event_22",
+    "title": "Утечка данных Microsoft",
+    "description": "Проблемы с безопасностью",
+    "effects": [
+      {"company_id": "microsoft", "direction": "down", "strength": 0.8},
+      {"company_id": "google", "direction": "up", "strength": 0.3}
+    ],
+    "duration_ticks": 4,
+    "image_id": "data_breach"
+  },
+  {
+    "id": "event_23",
+    "title": "Прорыв Google в AI",
+    "description": "Новый продукт меняет рынок",
+    "effects": [
+      {"company_id": "google", "direction": "up", "strength": 0.9},
+      {"company_id": "microsoft", "direction": "down", "strength": 0.4}
+    ],
+    "duration_ticks": 5,
+    "image_id": "ai_launch"
+  },
+  {
+    "id": "event_24",
+    "title": "Рост Prime у Amazon",
+    "description": "Приток пользователей",
+    "effects": [
+      {"company_id": "amazon", "direction": "up", "strength": 0.7},
+      {"company_id": "netflix", "direction": "down", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "prime_growth"
+  },
+  {
+    "id": "event_25",
+    "title": "Обвал технологического рынка",
+    "description": "Инвесторы распродают активы",
+    "effects": [
+      {"company_id": "apple", "direction": "down", "strength": 0.6},
+      {"company_id": "microsoft", "direction": "down", "strength": 0.6},
+      {"company_id": "google", "direction": "down", "strength": 0.6},
+      {"company_id": "amazon", "direction": "down", "strength": 0.6},
+      {"company_id": "tesla", "direction": "down", "strength": 0.6},
+      {"company_id": "nvidia", "direction": "down", "strength": 0.6}
+    ],
+    "duration_ticks": 6,
+    "image_id": "market_crash"
+  }
+]

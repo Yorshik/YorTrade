@@ -15,6 +15,7 @@ from app.store.fsm.accessor import FSMAccessor
 from app.store.market.accessor import MarketAccessor
 from app.store.queue.accessor import RabbitMQAccessor
 from app.store.users.accessor import UserAccessor
+from app.utils.data_loader import ensure_server_data_loaded
 from app.web.config import Config
 from app.web.logger import setup_logging
 from app.web.middleware_factory import MiddlewareFactory
@@ -74,6 +75,17 @@ async def setup_database(app: App):
     app.data = DataAccessor(app.db)
     app.market = MarketAccessor(app.db)
     await ensure_bootstrap_admin(app)
+    bootstrap_stats = await ensure_server_data_loaded(app)
+    if int(bootstrap_stats.get("skipped", 0)):
+        logger.info("Server data bootstrap skipped: catalog already loaded.")
+    else:
+        logger.info(
+            "Server data bootstrap completed assets_created=%s phrases_created=%s templates_loaded=%s news_loaded=%s",
+            bootstrap_stats.get("assets_created", 0),
+            bootstrap_stats.get("phrases_created", 0),
+            bootstrap_stats.get("event_templates_loaded", 0),
+            bootstrap_stats.get("news_loaded", 0),
+        )
     yield
     await app.db.disconnect()
 

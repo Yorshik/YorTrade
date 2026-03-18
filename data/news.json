@@ -1,0 +1,31 @@
+[
+  {"company_id": "apple", "direction": "up", "text": "Apple сообщает о рекордных продажах нового устройства"},
+  {"company_id": "apple", "direction": "down", "text": "Apple сталкивается с проблемами в производстве продукции"},
+
+  {"company_id": "microsoft", "direction": "up", "text": "Microsoft расширяет облачные мощности и привлекает новых клиентов"},
+  {"company_id": "microsoft", "direction": "down", "text": "Сбой в сервисах Microsoft вызывает недовольство пользователей"},
+
+  {"company_id": "google", "direction": "up", "text": "Google увеличивает доходы от рекламы благодаря новому алгоритму"},
+  {"company_id": "google", "direction": "down", "text": "Регуляторы усиливают давление на бизнес Google"},
+
+  {"company_id": "amazon", "direction": "up", "text": "Amazon ускоряет доставку и увеличивает число подписчиков"},
+  {"company_id": "amazon", "direction": "down", "text": "Amazon сталкивается с задержками поставок по всему миру"},
+
+  {"company_id": "tesla", "direction": "up", "text": "Tesla сообщает о росте продаж электромобилей"},
+  {"company_id": "tesla", "direction": "down", "text": "Tesla отзывает часть автомобилей из-за технических проблем"},
+
+  {"company_id": "nvidia", "direction": "up", "text": "Спрос на чипы Nvidia резко увеличивается"},
+  {"company_id": "nvidia", "direction": "down", "text": "Поставки продукции Nvidia замедляются из-за нехватки компонентов"},
+
+  {"company_id": "meta", "direction": "up", "text": "Meta показывает рост аудитории на своих платформах"},
+  {"company_id": "meta", "direction": "down", "text": "Meta теряет пользователей из-за конкуренции"},
+
+  {"company_id": "netflix", "direction": "up", "text": "Netflix привлекает новых подписчиков благодаря успешному релизу"},
+  {"company_id": "netflix", "direction": "down", "text": "Netflix фиксирует отток пользователей"},
+
+  {"company_id": "intel", "direction": "up", "text": "Intel успешно запускает новое поколение процессоров"},
+  {"company_id": "intel", "direction": "down", "text": "Intel теряет долю рынка из-за конкурентов"},
+
+  {"company_id": "samsung", "direction": "up", "text": "Samsung увеличивает производство полупроводников"},
+  {"company_id": "samsung", "direction": "down", "text": "Samsung сталкивается с падением спроса на продукцию"}
+]

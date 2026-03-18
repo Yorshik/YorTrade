@@ -2,13 +2,13 @@
 name = "birjabot"
 version = "0.1.0"
 description = "Add your description here"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
     "aio-pika>=9.6.1",
     "aiohttp>=3.13.3",
     "asyncpg>=0.31.0",
     "matplotlib>=3.10.8",
-    "numpy>=2.4.2",
+    "numpy>=1.26.4",
     "python-dotenv>=1.2.2",
     "redis>=7.3.0",
     "sqlalchemy>=2.0.48",
@@ -32,7 +32,7 @@ filterwarnings = [
 ]
 
 [tool.ruff]
-target-version = "py314"
+target-version = "py310"
 
 [tool.ruff.lint]
 extend-select = ["I", "INP", "PERF", "PL", "PT", "RUF", "SIM", "UP"]

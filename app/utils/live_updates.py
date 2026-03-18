@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.utils.private_ui import show_private_screen
@@ -23,6 +23,96 @@ def _prune_by_tick(items: list[dict], tick: int) -> bool:
     return len(items) != before
 
 
+def _event_fallback_key(item: dict, *, active_until: int | None = None) -> tuple[object, ...]:
+    return (
+        "fallback",
+        str(item.get("type") or ""),
+        str(item.get("template_id") or ""),
+        str(item.get("text") or ""),
+        int(item.get("active_until", -1) if active_until is None else active_until),
+    )
+
+
+def _events_match(left: dict, right: dict, *, right_active_until: int | None = None) -> bool:
+    left_event_id = str(left.get("event_id") or "").strip()
+    right_event_id = str(right.get("event_id") or "").strip()
+    if left_event_id and right_event_id and left_event_id == right_event_id:
+        return True
+    return _event_fallback_key(left) == _event_fallback_key(
+        right, active_until=right_active_until
+    )
+
+
+def _remove_matching_events(feed_events: list[dict], event_item: dict) -> bool:
+    before = len(feed_events)
+    event_id = str(event_item.get("event_id") or "").strip()
+    if event_id:
+        feed_events[:] = [
+            item
+            for item in feed_events
+            if str(item.get("event_id") or "").strip() != event_id
+        ]
+        return len(feed_events) != before
+
+    event_type = str(event_item.get("type") or "")
+    template_id = str(event_item.get("template_id") or "")
+    text = str(event_item.get("text") or "")
+    feed_events[:] = [
+        item
+        for item in feed_events
+        if not (
+            not str(item.get("event_id") or "").strip()
+            and str(item.get("type") or "") == event_type
+            and str(item.get("template_id") or "") == template_id
+            and str(item.get("text") or "") == text
+        )
+    ]
+    return len(feed_events) != before
+
+
+def _upsert_event(feed_events: list[dict], event_entry: dict, *, active_until: int) -> bool:
+    for index, current in enumerate(feed_events):
+        if not _events_match(current, event_entry, right_active_until=active_until):
+            continue
+        if current != event_entry:
+            feed_events[index] = event_entry
+            return True
+        return False
+    feed_events.append(event_entry)
+    return True
+
+
+def _dedupe_events(feed_events: list[dict]) -> bool:
+    deduped: list[dict] = []
+    changed = False
+    for item in feed_events:
+        existing_index = None
+        for index, current in enumerate(deduped):
+            if _events_match(current, item):
+                existing_index = index
+                break
+        if existing_index is None:
+            deduped.append(item)
+            continue
+        changed = True
+        existing = deduped[existing_index]
+        if int(item.get("source_tick", -1)) >= int(existing.get("source_tick", -1)):
+            deduped[existing_index] = item
+    if changed:
+        feed_events[:] = deduped
+    return changed
+
+
+def _drop_finished_events(feed_events: list[dict], tick: int) -> bool:
+    before = len(feed_events)
+    feed_events[:] = [
+        item
+        for item in feed_events
+        if int(item.get("active_until", -1)) > tick or bool(item.get("ended_text"))
+    ]
+    return len(feed_events) != before
+
+
 def _update_dm_feed(state: dict, generated: dict[str, Any] | None) -> bool:
     tick = int(state.get("tick", 0))
     feed = _ensure_dm_feed(state)
@@ -31,8 +121,10 @@ def _update_dm_feed(state: dict, generated: dict[str, Any] | None) -> bool:
     changed |= _prune_by_tick(feed["news"], tick)
     changed |= _prune_by_tick(feed["events"], tick)
     changed |= _prune_by_tick(feed["insiders"], tick)
+    changed |= _drop_finished_events(feed["events"], tick)
 
     if not generated:
+        changed |= _dedupe_events(feed["events"])
         return changed
 
     news_item = generated.get("news")
@@ -51,9 +143,15 @@ def _update_dm_feed(state: dict, generated: dict[str, Any] | None) -> bool:
         event_items = [generated["event"]]
     for event_item in event_items:
         event_ticks = max(0, int(event_item.get("ticks_left", 0)))
+        if event_ticks <= 0:
+            changed |= _remove_matching_events(feed["events"], event_item)
+            continue
         active_until = tick + event_ticks
         delta_raw = event_item.get("delta")
         event_entry = {
+            "type": event_item.get("type"),
+            "event_id": event_item.get("event_id"),
+            "template_id": event_item.get("template_id"),
             "asset_name": event_item.get("asset_name"),
             "source_tick": tick,
             "event_ticks": event_ticks,
@@ -65,14 +163,14 @@ def _update_dm_feed(state: dict, generated: dict[str, Any] | None) -> bool:
         }
         if delta_raw is not None:
             event_entry["delta"] = float(delta_raw)
-        feed["events"].append(event_entry)
-        changed = True
+        changed |= _upsert_event(feed["events"], event_entry, active_until=active_until)
 
     insider_item = generated.get("insider")
     if insider_item:
         feed["insiders"].append(
             {
                 "asset_name": insider_item.get("asset_name"),
+                "text": insider_item.get("text"),
                 "forecast_percent": float(insider_item.get("forecast_percent", 0.0)),
                 "true_change_percent": float(
                     insider_item.get("true_change_percent", 0.0)
@@ -82,6 +180,8 @@ def _update_dm_feed(state: dict, generated: dict[str, Any] | None) -> bool:
             }
         )
         changed = True
+
+    changed |= _dedupe_events(feed["events"])
 
     return changed
 
@@ -93,7 +193,7 @@ def _is_stale_pending(timestamp_raw: str | None) -> bool:
         timestamp = datetime.fromisoformat(timestamp_raw)
     except ValueError:
         return True
-    return datetime.now(UTC) - timestamp >= timedelta(seconds=PENDING_STUCK_SECONDS)
+    return datetime.now(timezone.utc) - timestamp >= timedelta(seconds=PENDING_STUCK_SECONDS)
 
 
 async def refresh_private_views(

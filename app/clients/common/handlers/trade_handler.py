@@ -24,13 +24,14 @@ class TradeHandler(BaseHandler):
 
         command, asset_id_raw, amount_raw = parts
         try:
-            asset_id = int(asset_id_raw)
             amount = int(amount_raw)
         except ValueError:
             return MessagePayload(
                 chat_id=update.chat_id,
-                text="ID актива и количество должны быть числами.",
+                text="Количество должно быть числом.",
             )
+        asset_id: int | str
+        asset_id = int(asset_id_raw) if asset_id_raw.isdigit() else asset_id_raw
 
         deal_type = DealType.BUY if command == "buy" else DealType.SELL
         try:

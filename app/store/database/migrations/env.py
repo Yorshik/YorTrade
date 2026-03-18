@@ -13,7 +13,19 @@ sys.path.insert(0, project_root)
 
 from app.api.models import ApiAuthSession, ApiAuthUser  # noqa: F401
 from app.data.models import Asset, Phrase  # noqa: F401
-from app.market.models import Deal, Game, GameAsset, Portfolio  # noqa: F401
+from app.market.models import (  # noqa: F401
+    ActiveEvent,
+    Company,
+    Deal,
+    EventTemplate,
+    Game,
+    GameAsset,
+    GameRuntimeState,
+    InsiderInfo,
+    News,
+    Portfolio,
+    PriceHistory,
+)
 from app.store.database.base import Base
 from app.users.models import AchievementStats, Player, User  # noqa: F401
 

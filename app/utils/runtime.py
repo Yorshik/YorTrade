@@ -1,14 +1,7 @@
-import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
-RUNTIME_KEY_TEMPLATE = "game_runtime:{game_id}"
-
 RuntimeState = dict[str, Any]
-
-
-def get_runtime_key(game_id: int) -> str:
-    return RUNTIME_KEY_TEMPLATE.format(game_id=game_id)
 
 
 def build_initial_runtime_state(
@@ -65,13 +58,17 @@ async def init_runtime_state(
 
 
 async def load_runtime_state(app, game_id: int) -> RuntimeState | None:
-    raw_state = await app.redis.get(get_runtime_key(game_id))
-    if not raw_state:
+    if not getattr(app, "market", None):
         return None
-    return json.loads(raw_state)
+    if not getattr(app.market, "runtime", None):
+        return None
+    state = await app.market.runtime.get_state(game_id)
+    if not state:
+        return None
+    return state
 
 
 async def save_runtime_state(app, state: RuntimeState) -> RuntimeState:
-    state["updated_at"] = datetime.now(UTC).isoformat()
-    await app.redis.set(get_runtime_key(state["game_id"]), json.dumps(state))
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await app.market.runtime.save_state(int(state["game_id"]), state)
     return state

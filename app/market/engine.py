@@ -1,22 +1,45 @@
 import asyncio
 import contextlib
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from time import monotonic
 
 from app.clients.common.mailbox import MessagePayload
+from app.market.event_engine import schedule_market_drivers
 from app.market.models import GameStatus
+from app.market.tick_processor import process_tick
 from app.utils.achievements import apply_achievement_progress
-from app.utils.events import generate_events
-from app.utils.inside_info import generate_inside_info
 from app.utils.live_updates import refresh_private_views
-from app.utils.market import update_prices
-from app.utils.news import generate_news
 from app.utils.render import refresh_market_message
 from app.utils.runtime import init_runtime_state, load_runtime_state, save_runtime_state
 from app.utils.trading import build_leaderboard
 
 logger = logging.getLogger(__name__)
+
+
+def _event_dedupe_key(event_item: dict) -> tuple[object, ...]:
+    event_id = str(event_item.get("event_id") or "").strip()
+    if event_id:
+        return ("event_id", event_id)
+    return (
+        "fallback",
+        str(event_item.get("type") or ""),
+        str(event_item.get("template_id") or ""),
+        str(event_item.get("text") or ""),
+        int(event_item.get("ticks_left", 0) or 0),
+    )
+
+
+def _dedupe_events(event_items: list[dict]) -> list[dict]:
+    seen: set[tuple[object, ...]] = set()
+    unique_items: list[dict] = []
+    for event_item in event_items:
+        key = _event_dedupe_key(event_item)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_items.append(event_item)
+    return unique_items
 
 
 class GameEngine:
@@ -136,38 +159,27 @@ class GameEngine:
                     "Game tick started for game_id=%s tick=%s", game_id, state["tick"]
                 )
 
+                state, scheduled = await self._run_stage(
+                    "schedule_market_drivers",
+                    schedule_market_drivers(self.app, game_id, state),
+                    game_id,
+                    state["tick"],
+                )
                 state, runtime_events = await self._run_stage(
-                    "update_prices",
-                    update_prices(self.app, game_id, state),
+                    "process_tick",
+                    process_tick(self.app, game_id, state),
                     game_id,
                     state["tick"],
                 )
-                state, event_item = await self._run_stage(
-                    "generate_events",
-                    generate_events(self.app, game_id, state),
-                    game_id,
-                    state["tick"],
-                )
-                event_items = list(runtime_events or [])
-                if event_item:
-                    event_items.append(event_item)
-                state, news_item = await self._run_stage(
-                    "generate_news",
-                    generate_news(self.app, game_id, state),
-                    game_id,
-                    state["tick"],
-                )
-                state, insider_item = await self._run_stage(
-                    "generate_inside_info",
-                    generate_inside_info(self.app, game_id, state),
-                    game_id,
-                    state["tick"],
-                )
+                event_items = list((scheduled or {}).get("events") or [])
+                event_items.extend(list(runtime_events or []))
+                event_items = _dedupe_events(event_items)
                 generated = {
-                    "event": event_items[0] if event_items else None,
+                    "event": event_items[0] if event_items else (scheduled or {}).get("event"),
                     "events": event_items,
-                    "news": news_item,
-                    "insider": insider_item,
+                    "news": (scheduled or {}).get("news"),
+                    "news_image_id": (scheduled or {}).get("news_image_id"),
+                    "insider": (scheduled or {}).get("insider"),
                 }
 
                 await self._run_stage(
@@ -279,7 +291,7 @@ class GameEngine:
         ends_at = state.get("ends_at")
         if not ends_at:
             return False
-        return datetime.now(UTC) >= datetime.fromisoformat(ends_at)
+        return datetime.now(timezone.utc) >= datetime.fromisoformat(ends_at)
 
     async def _finish_game(self, game_id: int, state: dict) -> None:
         game = await self.app.market.game.get_by_id(game_id)
@@ -336,7 +348,7 @@ class GameEngine:
                 add={"wins_total": 1},
             )
         game.status = GameStatus.FINISHED
-        game.ended_at = datetime.now(UTC)
+        game.ended_at = datetime.now(timezone.utc)
         await self.app.market.game.save(game)
         state["status"] = "finished"
         await save_runtime_state(self.app, state)

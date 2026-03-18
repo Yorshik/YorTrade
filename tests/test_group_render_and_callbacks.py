@@ -52,6 +52,32 @@ def _build_app_for_render() -> SimpleNamespace:
     )
 
 
+def test_build_generated_message_dedupes_events_and_shows_ticks_left() -> None:
+    generated = {
+        "events": [
+            {
+                "event_id": "evt:42",
+                "type": "market_event",
+                "template_id": "tpl_1",
+                "text": "обвал рынка",
+                "ticks_left": 3,
+                "include_remaining": True,
+            },
+            {
+                "event_id": "evt:42",
+                "type": "market_event",
+                "template_id": "tpl_1",
+                "text": "обвал рынка",
+                "ticks_left": 3,
+                "include_remaining": True,
+            },
+        ]
+    }
+
+    message = render.build_generated_message(generated)
+    assert message == "Ивент:\nобвал рынка (3 тиков осталось)"
+
+
 def test_refresh_market_message_recreates_large_message_when_generated(
     monkeypatch,
 ) -> None:
@@ -250,6 +276,28 @@ def test_private_show_private_screen_deletes_previous_message_on_send(
 
     app.sender.send_message.assert_awaited_once()
     app.sender.delete_message.assert_awaited_once_with(555, 321, target_platform="TG")
+
+
+def test_private_feed_hides_zero_ticks_event_line() -> None:
+    state = {
+        "tick": 10,
+        "dm_feed": {
+            "news": [],
+            "events": [
+                {
+                    "text": "Обвал технологического рынка",
+                    "event_ticks": 0,
+                    "active_until": 10,
+                    "display_until": 11,
+                    "include_remaining": True,
+                }
+            ],
+            "insiders": [],
+        },
+    }
+
+    lines = private_ui._build_dm_feed_lines(state)
+    assert all("Обвал технологического рынка" not in line for line in lines)
 
 
 def test_company_screen_disables_buy_button_during_buyback(monkeypatch) -> None:

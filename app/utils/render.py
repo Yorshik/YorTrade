@@ -1,5 +1,6 @@
 from asyncio import Lock
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from app.clients.common.mailbox import (
@@ -21,6 +22,8 @@ GROUP_VIEW_LEADERBOARD = "leaderboard"
 GROUP_VIEW_MARKET = "market"
 GROUP_VIEW_KEY = "market_view"
 _MARKET_REFRESH_LOCKS: dict[int, Lock] = {}
+PICTURES_DIR = Path(__file__).resolve().parents[2] / "data" / "pictures"
+_SUPPORTED_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 
 
 def _normalize_view(view: str | None) -> str:
@@ -38,6 +41,42 @@ def _market_refresh_lock(game_id: int) -> Lock:
     return lock
 
 
+def _event_dedupe_key(event_item: dict) -> tuple[object, ...]:
+    event_id = str(event_item.get("event_id") or "").strip()
+    if event_id:
+        return ("event_id", event_id)
+    return (
+        "fallback",
+        str(event_item.get("type") or ""),
+        str(event_item.get("template_id") or ""),
+        str(event_item.get("text") or ""),
+        int(event_item.get("ticks_left", 0) or 0),
+    )
+
+
+def _dedupe_generated_events(event_items: list[dict]) -> list[dict]:
+    seen: set[tuple[object, ...]] = set()
+    unique: list[dict] = []
+    for event_item in event_items:
+        key = _event_dedupe_key(event_item)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(event_item)
+    return unique
+
+
+def _format_event_text(event_item: dict) -> str | None:
+    raw_text = event_item.get("text")
+    if not raw_text:
+        return None
+    text = str(raw_text)
+    if not bool(event_item.get("include_remaining", True)):
+        return text
+    ticks_left = max(0, int(event_item.get("ticks_left", 0) or 0))
+    return f"{text} ({ticks_left} тиков осталось)"
+
+
 def build_generated_message(generated: dict[str, Any] | None) -> str | None:
     if not generated:
         return None
@@ -45,15 +84,16 @@ def build_generated_message(generated: dict[str, Any] | None) -> str | None:
     event_items = generated.get("events") or []
     if not event_items and generated.get("event"):
         event_items = [generated["event"]]
+    event_items = _dedupe_generated_events(list(event_items))
     news = generated.get("news")
     insider = generated.get("insider")
 
     if event_items:
         lines.append("Ивент:")
         for event in event_items:
-            text = event.get("text")
+            text = _format_event_text(event)
             if text:
-                lines.append(str(text))
+                lines.append(text)
             elif event.get("asset_name") is not None and event.get("delta") is not None:
                 lines.append(
                     f"{event['asset_name']} {float(event['delta']):+.2f} "
@@ -73,22 +113,66 @@ def build_generated_message(generated: dict[str, Any] | None) -> str | None:
     if insider:
         if lines:
             lines.append("")
-        lines.extend(
-            [
-                "Инсайд:",
-                f"{insider['asset_name']} прогноз {float(insider['forecast_percent']):+.1f}%",
-            ]
-        )
+        insider_text = insider.get("text")
+        if insider_text:
+            lines.extend(
+                [
+                    "Инсайд:",
+                    str(insider_text),
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "Инсайд:",
+                    f"{insider['asset_name']} прогноз {float(insider['forecast_percent']):+.1f}%",
+                ]
+            )
     if not lines:
         return None
     return "\n".join(lines)
+
+
+def _resolve_generated_image_path(generated: dict[str, Any] | None) -> str | None:
+    if not generated:
+        return None
+    image_id = None
+    event_items = generated.get("events") or []
+    if not event_items and generated.get("event"):
+        event_items = [generated["event"]]
+    event_items = _dedupe_generated_events(list(event_items))
+    for item in event_items:
+        current = (item or {}).get("image_id")
+        if current:
+            image_id = str(current)
+            break
+    if not image_id:
+        news_image_id = generated.get("news_image_id")
+        if news_image_id:
+            image_id = str(news_image_id)
+    if not image_id:
+        insider_item = generated.get("insider") or {}
+        if insider_item.get("image_id"):
+            image_id = str(insider_item.get("image_id"))
+    if not image_id:
+        return None
+
+    for extension in _SUPPORTED_IMAGE_EXTENSIONS:
+        candidate = PICTURES_DIR / f"{image_id}{extension}"
+        if candidate.exists():
+            return str(candidate)
+
+    legacy_candidate = PICTURES_DIR / image_id
+    if legacy_candidate.exists():
+        return str(legacy_candidate)
+    return None
 
 
 def _format_seconds_left(ends_at: str | None) -> str:
     if not ends_at:
         return "--:--"
     seconds_left = max(
-        0, int((datetime.fromisoformat(ends_at) - datetime.now(UTC)).total_seconds())
+        0, int((datetime.fromisoformat(ends_at) - datetime.now(timezone.utc)).total_seconds())
     )
     minutes, seconds = divmod(seconds_left, 60)
     return f"{minutes:02d}:{seconds:02d}"
@@ -159,7 +243,7 @@ def _is_stale_pending(timestamp_raw: str | None) -> bool:
         timestamp = datetime.fromisoformat(timestamp_raw)
     except ValueError:
         return True
-    return datetime.now(UTC) - timestamp >= timedelta(seconds=PENDING_STUCK_SECONDS)
+    return datetime.now(timezone.utc) - timestamp >= timedelta(seconds=PENDING_STUCK_SECONDS)
 
 
 def _build_player_line(row: dict, player, user, state: RuntimeState) -> str:
@@ -313,15 +397,19 @@ async def refresh_market_message(
             app, game_id, state
         )
         generated_message = build_generated_message(generated)
+        generated_image_path = _resolve_generated_image_path(generated)
         current_message_id = state.get("market_message_id")
 
         if generated_message:
+            payload_kwargs: dict[str, Any] = {
+                "chat_id": state["chat_id"],
+                "target_platform": target_platform,
+                "text": generated_message,
+            }
+            if generated_image_path:
+                payload_kwargs["photo_path"] = generated_image_path
             await app.sender.send_message(
-                MessagePayload(
-                    chat_id=state["chat_id"],
-                    target_platform=target_platform,
-                    text=generated_message,
-                )
+                MessagePayload(**payload_kwargs)
             )
             if current_message_id:
                 await app.sender.delete_message(
@@ -351,7 +439,7 @@ async def refresh_market_message(
             return state
 
         state["market_message_pending"] = True
-        state["market_message_pending_since"] = datetime.now(UTC).isoformat()
+        state["market_message_pending_since"] = datetime.now(timezone.utc).isoformat()
         await save_runtime_state(app, state)
         await app.sender.send_message(
             MessagePayload(

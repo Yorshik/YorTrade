@@ -1,4 +1,4 @@
-from enum import StrEnum, auto
+from enum import Enum, auto
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -6,14 +6,14 @@ from pydantic import BaseModel, Field, model_validator
 from app.utils.platform import build_actor_key
 
 
-class MessageType(StrEnum):
+class MessageType(str, Enum):
     TEXT = auto()
     CALLBACK_QUERY = auto()
     NEW_CHAT_MEMBERS = auto()
     UNKNOWN = auto()
 
 
-class PayloadAction(StrEnum):
+class PayloadAction(str, Enum):
     SEND = "send"
     EDIT = "edit"
     EDIT_CAPTION = "edit_caption"
@@ -102,7 +102,7 @@ class Update(BaseModel):
     user_id: int | None = None
 
     @model_validator(mode="after")
-    def unify_fields(self) -> Update:
+    def unify_fields(self) -> "Update":
         if self.message:
             self.from_user = self.message.from_user
             self.chat_id = self.message.chat.id

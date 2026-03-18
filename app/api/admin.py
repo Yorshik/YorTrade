@@ -4,7 +4,7 @@ import hmac
 import json
 import logging
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -19,7 +19,19 @@ from app.api.models import ApiAuthSession, ApiAuthUser  # noqa: F401
 
 # Ensure models are imported so Base.metadata is fully populated.
 from app.data.models import Asset, Phrase  # noqa: F401
-from app.market.models import Deal, Game, GameAsset, Portfolio  # noqa: F401
+from app.market.models import (  # noqa: F401
+    ActiveEvent,
+    Company,
+    Deal,
+    EventTemplate,
+    Game,
+    GameAsset,
+    GameRuntimeState,
+    InsiderInfo,
+    News,
+    Portfolio,
+    PriceHistory,
+)
 from app.store.database.base import Base
 from app.users.models import AchievementStats, Player, User  # noqa: F401
 
@@ -211,8 +223,8 @@ def _extract_auth_token(request: web.Request) -> str | None:
 def _is_expired(expires_at: datetime | None) -> bool:
     if expires_at is None:
         return False
-    normalized = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=UTC)
-    return normalized <= datetime.now(UTC)
+    normalized = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+    return normalized <= datetime.now(timezone.utc)
 
 
 async def _get_authenticated_user(request: web.Request) -> dict[str, Any] | None:
@@ -602,7 +614,7 @@ async def login_api_user(request: web.Request) -> web.Response:
         ttl_hours = max(
             1, int(getattr(request.app.config, "API_AUTH_TTL_HOURS", 24) or 24)
         )
-        expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
         token = secrets.token_urlsafe(32)
         session_stmt = (
             insert(sessions)
@@ -705,7 +717,7 @@ async def health(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "status": "ok",
-            "now_utc": datetime.now(UTC).isoformat(),
+            "now_utc": datetime.now(timezone.utc).isoformat(),
         }
     )
 

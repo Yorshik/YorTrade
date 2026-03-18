@@ -1,6 +1,6 @@
 import math
 from asyncio import Lock
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from app.clients.common.mailbox import (
     InlineKeyboardButton,
@@ -50,7 +50,7 @@ def _format_seconds_left(ends_at: str | None) -> str:
     if not ends_at:
         return "--:--"
     seconds_left = max(
-        0, int((datetime.fromisoformat(ends_at) - datetime.now(UTC)).total_seconds())
+        0, int((datetime.fromisoformat(ends_at) - datetime.now(timezone.utc)).total_seconds())
     )
     minutes, seconds = divmod(seconds_left, 60)
     return f"{minutes:02d}:{seconds:02d}"
@@ -80,7 +80,7 @@ def _is_pending_stale(timestamp_raw: str | None) -> bool:
         timestamp = datetime.fromisoformat(timestamp_raw)
     except ValueError:
         return True
-    return (datetime.now(UTC) - timestamp).total_seconds() >= _PENDING_STUCK_SECONDS
+    return (datetime.now(timezone.utc) - timestamp).total_seconds() >= _PENDING_STUCK_SECONDS
 
 
 def _screen_platform(data: dict | None = None) -> str:
@@ -131,7 +131,7 @@ def _build_dm_feed_lines(state: dict) -> list[str]:
 
     for event_item in feed.get("events", []):
         active_until = int(event_item.get("active_until", -1))
-        if tick <= active_until:
+        if tick < active_until:
             remaining = max(0, active_until - tick)
             event_text = event_item.get("text")
             if event_text:
@@ -163,10 +163,14 @@ def _build_dm_feed_lines(state: dict) -> list[str]:
     for insider_item in feed.get("insiders", []):
         source_tick = int(insider_item.get("source_tick", tick))
         if tick == source_tick:
-            lines.append(
-                f"Инсайд: {insider_item.get('asset_name')} "
-                f"{float(insider_item.get('forecast_percent', 0.0)):+.1f}%"
-            )
+            insider_text = insider_item.get("text")
+            if insider_text:
+                lines.append(f"Инсайд: {insider_text}")
+            else:
+                lines.append(
+                    f"Инсайд: {insider_item.get('asset_name')} "
+                    f"{float(insider_item.get('forecast_percent', 0.0)):+.1f}%"
+                )
         elif tick == source_tick + 1:
             lines.append(f"Инсайд отыгран: {insider_item.get('asset_name')}")
 
@@ -691,7 +695,7 @@ async def show_private_screen(
             "screen": screen,
             "private_message_id": previous_message_id,
             "private_message_pending": True,
-            "private_message_pending_since": datetime.now(UTC).isoformat(),
+            "private_message_pending_since": datetime.now(timezone.utc).isoformat(),
         }
         payload.fsm_update = {
             "user_id": tg_user_id,

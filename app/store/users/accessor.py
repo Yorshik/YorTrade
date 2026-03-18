@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -226,7 +226,7 @@ class _PlayerAccessor:
     async def leave(self, player: Player, final_capital: float | None = None) -> Player:
         async with self.db.session as session:
             player.is_active = False
-            player.left_at = datetime.now(UTC)
+            player.left_at = datetime.now(timezone.utc)
             player.final_capital = final_capital
             session.add(player)
             await session.commit()
@@ -285,7 +285,7 @@ class _AchievementStatsAccessor:
 
     async def save(self, stats: AchievementStats) -> AchievementStats:
         async with self.db.session as session:
-            stats.updated_at = datetime.now(UTC)
+            stats.updated_at = datetime.now(timezone.utc)
             session.add(stats)
             await session.commit()
             await session.refresh(stats)

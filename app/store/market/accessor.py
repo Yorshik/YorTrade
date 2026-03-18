@@ -2,6 +2,7 @@ from sqlalchemy import select
 
 from app.market.models import Deal, DealType, Game, GameAsset, GameStatus, Portfolio
 from app.store.database.accessor import DatabaseAccessor
+from app.store.market.runtime_accessor import RuntimeAccessor
 
 
 class _GameAccessor:
@@ -76,6 +77,7 @@ class MarketAccessor:
         self.game_asset = _GameAssetAccessor(db)
         self.portfolio = _PortfolioAccessor(db)
         self.deal = _DealAccessor(db)
+        self.runtime = RuntimeAccessor(db)
 
 
 class _GameAssetAccessor:
@@ -102,6 +104,7 @@ class _GameAssetAccessor:
         *,
         game_id: int,
         asset_id: int,
+        company_id: str | None = None,
         start_price: float,
         volatility: float,
         shares_total: int,
@@ -111,6 +114,7 @@ class _GameAssetAccessor:
             game_asset = GameAsset(
                 game_id=game_id,
                 asset_id=asset_id,
+                company_id=company_id,
                 start_price=start_price,
                 volatility=volatility,
                 shares_total=shares_total,
@@ -126,6 +130,15 @@ class _GameAssetAccessor:
             stmt = select(GameAsset).where(
                 GameAsset.game_id == game_id,
                 GameAsset.asset_id == asset_id,
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+
+    async def get_by_company_id(self, game_id: int, company_id: str) -> GameAsset | None:
+        async with self.db.session as session:
+            stmt = select(GameAsset).where(
+                GameAsset.game_id == game_id,
+                GameAsset.company_id == str(company_id),
             )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()

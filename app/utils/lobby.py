@@ -2,7 +2,6 @@ from app.clients.common.mailbox import InlineKeyboardButton, InlineKeyboardMarku
 from app.market.settings import build_default_game_settings
 
 SETTINGS_FIELDS = {
-    "companies_amount": {"label": "Компании", "step": 1, "min": 2, "max": 400},
     "tick_seconds": {"label": "Тик", "step": 5, "min": 5, "max": 120},
     "game_duration_minutes": {"label": "Длительность", "step": 5, "min": 5, "max": 180},
     "global_volatility": {
@@ -11,13 +10,6 @@ SETTINGS_FIELDS = {
         "min": 0.1,
         "max": 50.0,
     },
-    "min_start_price": {"label": "Мин. цена", "step": 10.0, "min": 1.0, "max": 10000.0},
-    "max_start_price": {
-        "label": "Макс. цена",
-        "step": 10.0,
-        "min": 1.0,
-        "max": 10000.0,
-    },
     "default_balance": {"label": "Баланс", "step": 100, "min": 100, "max": 1000000},
 }
 
@@ -25,12 +17,9 @@ SETTINGS_FIELDS = {
 def normalize_game_settings(settings: dict | None) -> dict:
     normalized = build_default_game_settings()
     if settings:
-        normalized.update(settings)
-    if normalized["min_start_price"] > normalized["max_start_price"]:
-        normalized["min_start_price"], normalized["max_start_price"] = (
-            normalized["max_start_price"],
-            normalized["min_start_price"],
-        )
+        for key, value in settings.items():
+            if key in normalized:
+                normalized[key] = value
     return normalized
 
 
@@ -45,10 +34,16 @@ def adjust_setting(settings: dict, field_name: str, direction: int) -> dict:
 
 def set_setting_value(settings: dict, field_name: str, raw_value: str) -> dict:
     field = SETTINGS_FIELDS[field_name]
+    value_raw = str(raw_value or "").strip().replace(",", ".")
+    if not value_raw:
+        raise ValueError("empty input")
     if isinstance(field["step"], int):
-        value = int(raw_value)
+        parsed = float(value_raw)
+        if not parsed.is_integer():
+            raise ValueError("expected integer")
+        value = int(parsed)
     else:
-        value = round(float(raw_value), 1)
+        value = round(float(value_raw), 1)
     value = max(field["min"], min(field["max"], value))
     settings[field_name] = value
     return normalize_game_settings(settings)
@@ -170,10 +165,9 @@ def render_settings_keyboard(
 def render_settings_text(settings: dict) -> str:
     return (
         "Настройки игры:\n"
-        f"Компаний: {settings['companies_amount']}\n"
+        "Компаний: все доступные\n"
         f"Длительность тика: {settings['tick_seconds']} сек\n"
         f"Длительность игры: {settings['game_duration_minutes']} мин\n"
         f"Глобальная волатильность: {settings['global_volatility']}\n"
-        f"Стартовая цена: {settings['min_start_price']} - {settings['max_start_price']}\n"
         f"Стартовый баланс: {settings['default_balance']}"
     )

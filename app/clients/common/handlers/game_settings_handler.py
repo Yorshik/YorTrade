@@ -212,7 +212,7 @@ class GameSettingsHandler(BaseHandler):
         data = state[1]
         field_name = data.get("pending_setting")
         settings_message_id = data.get("settings_message_id")
-        if not field_name or not settings_message_id:
+        if not field_name:
             return None
 
         settings = normalize_game_settings(game.settings)
@@ -222,36 +222,53 @@ class GameSettingsHandler(BaseHandler):
             await self.app.sender.delete_message(
                 update.chat_id, update.message.message_id
             )
+            error_text = (
+                f"Неверное значение для параметра «{get_setting_label(field_name)}».\n"
+                f"Введите число.\n\n"
+                f"{render_setting_input_prompt(field_name, settings)}"
+            )
+            if settings_message_id:
+                return MessagePayload(
+                    chat_id=update.chat_id,
+                    action=PayloadAction.EDIT,
+                    message_id=settings_message_id,
+                    text=error_text,
+                    keyboard=render_setting_input_keyboard(field_name),
+                )
             return MessagePayload(
                 chat_id=update.chat_id,
-                action=PayloadAction.EDIT,
-                message_id=settings_message_id,
-                text=(
-                    f"Неверное значение для параметра «{get_setting_label(field_name)}».\n"
-                    f"Введите число.\n\n"
-                    f"{render_setting_input_prompt(field_name, settings)}"
-                ),
+                text=error_text,
                 keyboard=render_setting_input_keyboard(field_name),
             )
 
         game.settings = settings
         await self.app.market.game.save(game)
         await self.app.sender.delete_message(update.chat_id, update.message.message_id)
+        state_payload = {
+            "game_id": game.id,
+        }
+        if settings_message_id:
+            state_payload["settings_message_id"] = settings_message_id
         await self.app.fsm.set_state(
             update.from_user.id,
             self.app.fsm.FSM.GAME_SETTINGS,
-            {
-                "game_id": game.id,
-                "settings_message_id": settings_message_id,
-            },
+            state_payload,
             platform=source_platform,
         )
+        settings_text = render_settings_text(settings)
+        settings_keyboard = render_settings_keyboard(
+            settings, use_client=(update.source_platform or "TG")
+        )
+        if settings_message_id:
+            return MessagePayload(
+                chat_id=update.chat_id,
+                action=PayloadAction.EDIT,
+                message_id=settings_message_id,
+                text=settings_text,
+                keyboard=settings_keyboard,
+            )
         return MessagePayload(
             chat_id=update.chat_id,
-            action=PayloadAction.EDIT,
-            message_id=settings_message_id,
-            text=render_settings_text(settings),
-            keyboard=render_settings_keyboard(
-                settings, use_client=(update.source_platform or "TG")
-            ),
+            text=settings_text,
+            keyboard=settings_keyboard,
         )

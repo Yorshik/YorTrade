@@ -6,7 +6,6 @@ from app.market import engine as engine_module
 from app.market.models import DealType, GameStatus
 from app.utils import (
     achievements as achievements_utils,
-    market as market_utils,
     trading,
 )
 
@@ -119,75 +118,6 @@ def test_execute_trade_updates_achievements_when_tracking_enabled(monkeypatch) -
     assert call_kwargs["peak"]["company_share_peak_percent"] == 0.2
     assert call_kwargs["peak"]["capital_growth_peak_ratio"] == 1.02
     assert state["trade_counters"]["10"]["count"] == 1
-
-
-def test_update_prices_dividends_updates_achievement_progress(monkeypatch) -> None:
-    player = SimpleNamespace(id=10, user_id=77, is_active=True, balance=1000.0)
-    app = SimpleNamespace(
-        users=SimpleNamespace(
-            player=SimpleNamespace(
-                list_by_game=AsyncMock(return_value=[player]),
-                save=AsyncMock(),
-            ),
-            achievement=object(),
-        ),
-        market=SimpleNamespace(
-            game=SimpleNamespace(
-                get_by_id=AsyncMock(
-                    return_value=SimpleNamespace(settings={"default_balance": 1000})
-                )
-            ),
-            portfolio=SimpleNamespace(
-                get=AsyncMock(return_value=SimpleNamespace(amount=10)),
-            ),
-        ),
-    )
-    state = {
-        "assets": {
-            "1": {
-                "asset_id": 1,
-                "name": "Company A",
-                "volatility": 5.0,
-                "current_price": 100.0,
-                "trend_sign": 1,
-                "history": [100.0],
-                "pending_news": [],
-                "pending_inside_info": [],
-                "pending_order_impact": 0.0,
-                "active_event": {
-                    "type": "dividends",
-                    "ticks_left": 1,
-                    "payout_rate": 0.02,
-                },
-            }
-        }
-    }
-    apply_progress_mock = AsyncMock()
-    monkeypatch.setattr(market_utils, "apply_achievement_progress", apply_progress_mock)
-    monkeypatch.setattr(
-        market_utils,
-        "build_player_capital_snapshot",
-        AsyncMock(
-            return_value={
-                "total_capital": 1200.0,
-                "unique_assets": 1,
-                "total_amount": 10,
-            }
-        ),
-    )
-    monkeypatch.setattr(market_utils, "_refresh_capital_growth_peaks", AsyncMock())
-
-    updated_state, _ = asyncio.run(
-        market_utils.update_prices(app, game_id=1, state=state)
-    )
-
-    assert updated_state["assets"]["1"]["active_event"] is None
-    assert player.balance == 1020.0
-    assert apply_progress_mock.await_count == 1
-    call_kwargs = apply_progress_mock.await_args.kwargs
-    assert call_kwargs["user_id"] == 77
-    assert call_kwargs["add"] == {"dividends_total": 20.0}
-    assert call_kwargs["peak"]["capital_growth_peak_ratio"] == 1.2
 
 
 def test_finish_game_awards_win_achievement(monkeypatch) -> None:

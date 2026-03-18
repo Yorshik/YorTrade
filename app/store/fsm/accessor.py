@@ -1,4 +1,5 @@
-import json
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 from app.store.fsm.states import FSM
@@ -13,10 +14,6 @@ class FSMAccessor:
     def __init__(self, app: App):
         self.app = app
         self.FSM = FSM
-
-    @staticmethod
-    def _redis_key(actor_key: str) -> str:
-        return f"fsm:{actor_key}"
 
     def _resolve_actor_key(self, user_id: int, platform: str | None = None) -> str:
         context = get_update_context() or {}
@@ -33,15 +30,6 @@ class FSMAccessor:
         self, user_id: int, platform: str | None = None
     ) -> tuple[str, dict[str, Any]] | None:
         actor_key = self._resolve_actor_key(user_id, platform)
-        raw = await self.app.redis.get(self._redis_key(actor_key))
-        if raw:
-            try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError:
-                parsed = None
-            if parsed:
-                return parsed.get("state"), parsed.get("data", {})
-
         parsed_actor = parse_actor_key(actor_key)
         if parsed_actor:
             raw_data = await self.app.users.user.get_fsm_state(
@@ -65,8 +53,6 @@ class FSMAccessor:
             data = {}
         payload = {"state": state, "data": data}
         actor_key = self._resolve_actor_key(user_id, platform)
-        await self.app.redis.set(self._redis_key(actor_key), json.dumps(payload))
-
         parsed_actor = parse_actor_key(actor_key)
         if parsed_actor:
             await self.app.users.user.set_fsm_state(
@@ -75,7 +61,6 @@ class FSMAccessor:
 
     async def clear_state(self, user_id: int, platform: str | None = None):
         actor_key = self._resolve_actor_key(user_id, platform)
-        await self.app.redis.delete(self._redis_key(actor_key))
         parsed_actor = parse_actor_key(actor_key)
         if parsed_actor:
             await self.app.users.user.set_fsm_state(
