@@ -46,7 +46,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "5000:5000"
     env_file: .env
     environment:
       DATABASE_DSN: postgresql+asyncpg://postgres:postgres@postgres:5432/app
