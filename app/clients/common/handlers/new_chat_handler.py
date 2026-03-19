@@ -1,11 +1,6 @@
-import json
-from pathlib import Path
-
 from app.clients.common.handlers.base import BaseHandler
 from app.clients.common.mailbox import MessagePayload, MessageType, Update
-
-DATA_DIR = Path(__file__).resolve().parents[4] / "data"
-TEXTS_PATH = DATA_DIR / "texts.json"
+from app.utils.texts import load_text
 
 
 class NewChatMemberHandler(BaseHandler):
@@ -20,6 +15,5 @@ class NewChatMemberHandler(BaseHandler):
         return any(member.id == bot_id for member in update.message.new_chat_members)
 
     async def handle(self, update: Update) -> MessagePayload | None:
-        with TEXTS_PATH.open(encoding="utf-8") as file:
-            greeting_message = json.load(file)["greeting"]
+        greeting_message = load_text("greeting", fallback_key="help")
         return MessagePayload(chat_id=update.chat_id, text=greeting_message)

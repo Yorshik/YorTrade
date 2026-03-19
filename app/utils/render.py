@@ -77,94 +77,94 @@ def _format_event_text(event_item: dict) -> str | None:
     return f"{text} ({ticks_left} тиков осталось)"
 
 
-def build_generated_message(generated: dict[str, Any] | None) -> str | None:
-    if not generated:
+def _resolve_image_path_by_id(image_id: object) -> str | None:
+    if not image_id:
         return None
-    lines: list[str] = []
+    image_id_str = str(image_id).strip()
+    if not image_id_str:
+        return None
+    for extension in _SUPPORTED_IMAGE_EXTENSIONS:
+        candidate = PICTURES_DIR / f"{image_id_str}{extension}"
+        if candidate.exists():
+            return str(candidate)
+    legacy_candidate = PICTURES_DIR / image_id_str
+    if legacy_candidate.exists():
+        return str(legacy_candidate)
+    return None
+
+
+def build_generated_chunks(generated: dict[str, Any] | None) -> list[dict[str, str | None]]:
+    if not generated:
+        return []
+
+    chunks: list[dict[str, str | None]] = []
     event_items = generated.get("events") or []
     if not event_items and generated.get("event"):
         event_items = [generated["event"]]
     event_items = _dedupe_generated_events(list(event_items))
-    news = generated.get("news")
-    insider = generated.get("insider")
 
-    if event_items:
-        lines.append("Ивент:")
-        for event in event_items:
-            text = _format_event_text(event)
-            if text:
-                lines.append(text)
-            elif event.get("asset_name") is not None and event.get("delta") is not None:
-                lines.append(
-                    f"{event['asset_name']} {float(event['delta']):+.2f} "
-                    f"(осталось тиков: {int(event.get('ticks_left', 0))})"
-                )
-            elif event.get("asset_name") is not None:
-                lines.append(str(event["asset_name"]))
+    for event_item in event_items:
+        event_lines = ["⚡ Ивент:"]
+        text = _format_event_text(event_item)
+        if text:
+            event_lines.append(text)
+        elif event_item.get("asset_name") is not None and event_item.get("delta") is not None:
+            event_lines.append(
+                f"{event_item['asset_name']} {float(event_item['delta']):+.2f} "
+                f"(осталось тиков: {int(event_item.get('ticks_left', 0))})"
+            )
+        elif event_item.get("asset_name") is not None:
+            event_lines.append(str(event_item["asset_name"]))
+
+        if len(event_lines) > 1:
+            chunks.append(
+                {
+                    "text": "\n".join(event_lines),
+                    "image_path": _resolve_image_path_by_id(event_item.get("image_id")),
+                }
+            )
+
+    news = generated.get("news")
     if news:
-        if lines:
-            lines.append("")
-        lines.extend(
-            [
-                "Новости:",
-                str(news),
-            ]
+        chunks.append(
+            {
+                "text": f"📰 Новости:\n{news}",
+                "image_path": _resolve_image_path_by_id(generated.get("news_image_id")),
+            }
         )
+
+    insider = generated.get("insider")
     if insider:
-        if lines:
-            lines.append("")
         insider_text = insider.get("text")
         if insider_text:
-            lines.extend(
-                [
-                    "Инсайд:",
-                    str(insider_text),
-                ]
-            )
+            insider_line = str(insider_text)
         else:
-            lines.extend(
-                [
-                    "Инсайд:",
-                    f"{insider['asset_name']} прогноз {float(insider['forecast_percent']):+.1f}%",
-                ]
+            insider_line = (
+                f"{insider.get('asset_name')} прогноз "
+                f"{float(insider.get('forecast_percent', 0.0)):+.1f}%"
             )
-    if not lines:
+        chunks.append(
+            {
+                "text": f"🕵️ Инсайд:\n{insider_line}",
+                "image_path": _resolve_image_path_by_id(insider.get("image_id")),
+            }
+        )
+
+    return chunks
+
+
+def build_generated_message(generated: dict[str, Any] | None) -> str | None:
+    chunks = build_generated_chunks(generated)
+    if not chunks:
         return None
-    return "\n".join(lines)
+    return "\n\n".join(str(chunk.get("text") or "").strip() for chunk in chunks).strip()
 
 
 def _resolve_generated_image_path(generated: dict[str, Any] | None) -> str | None:
-    if not generated:
-        return None
-    image_id = None
-    event_items = generated.get("events") or []
-    if not event_items and generated.get("event"):
-        event_items = [generated["event"]]
-    event_items = _dedupe_generated_events(list(event_items))
-    for item in event_items:
-        current = (item or {}).get("image_id")
-        if current:
-            image_id = str(current)
-            break
-    if not image_id:
-        news_image_id = generated.get("news_image_id")
-        if news_image_id:
-            image_id = str(news_image_id)
-    if not image_id:
-        insider_item = generated.get("insider") or {}
-        if insider_item.get("image_id"):
-            image_id = str(insider_item.get("image_id"))
-    if not image_id:
-        return None
-
-    for extension in _SUPPORTED_IMAGE_EXTENSIONS:
-        candidate = PICTURES_DIR / f"{image_id}{extension}"
-        if candidate.exists():
-            return str(candidate)
-
-    legacy_candidate = PICTURES_DIR / image_id
-    if legacy_candidate.exists():
-        return str(legacy_candidate)
+    for chunk in build_generated_chunks(generated):
+        image_path = chunk.get("image_path")
+        if image_path:
+            return image_path
     return None
 
 
@@ -176,6 +176,20 @@ def _format_seconds_left(ends_at: str | None) -> str:
     )
     minutes, seconds = divmod(seconds_left, 60)
     return f"{minutes:02d}:{seconds:02d}"
+
+
+def _seconds_until_price_update(state: RuntimeState, tick_seconds: int) -> int:
+    next_tick_at_raw = state.get("next_tick_at")
+    if next_tick_at_raw:
+        try:
+            next_tick_at = datetime.fromisoformat(str(next_tick_at_raw))
+            return max(
+                0,
+                int((next_tick_at - datetime.now(timezone.utc)).total_seconds()),
+            )
+        except ValueError:
+            pass
+    return max(0, int(tick_seconds))
 
 
 def _asset_change_percent(asset_state: dict) -> float:
@@ -335,8 +349,9 @@ async def _build_group_caption_and_keyboard(
     game_assets_map = {int(row.asset_id): row for row in game_assets}
 
     lines = [
-        f"{chat_title} ({state['chat_id']})",
-        f"Тик {state['tick']} | Осталось времени: {_format_seconds_left(state.get('ends_at'))}",
+        f"📍 {chat_title} ({state['chat_id']})",
+        f"⏱ До обновления цен: {_seconds_until_price_update(state, tick_seconds)} сек | "
+        f"Осталось времени: {_format_seconds_left(state.get('ends_at'))}",
     ]
 
     if view in {GROUP_VIEW_MAIN, GROUP_VIEW_LEADERBOARD}:
@@ -346,7 +361,7 @@ async def _build_group_caption_and_keyboard(
         show_all_players = view == GROUP_VIEW_LEADERBOARD
         if show_inline_players or show_all_players:
             lines.append("")
-            lines.append("Игроки:")
+            lines.append("👥 Игроки:")
             for row in leaderboard:
                 player = players_map.get(row["player_id"])
                 user = (
@@ -363,7 +378,7 @@ async def _build_group_caption_and_keyboard(
         show_all_assets = view == GROUP_VIEW_MARKET
         if show_inline_assets or show_all_assets:
             lines.append("")
-            lines.append("Компании:")
+            lines.append("🏢 Компании:")
             lines.extend(_build_asset_line(asset, game_assets_map) for asset in assets)
 
     keyboard = _build_group_keyboard(
@@ -396,21 +411,20 @@ async def refresh_market_message(
         caption, keyboard, chart_content_b64 = await _build_group_caption_and_keyboard(
             app, game_id, state
         )
-        generated_message = build_generated_message(generated)
-        generated_image_path = _resolve_generated_image_path(generated)
+        generated_chunks = build_generated_chunks(generated)
         current_message_id = state.get("market_message_id")
 
-        if generated_message:
-            payload_kwargs: dict[str, Any] = {
-                "chat_id": state["chat_id"],
-                "target_platform": target_platform,
-                "text": generated_message,
-            }
-            if generated_image_path:
-                payload_kwargs["photo_path"] = generated_image_path
-            await app.sender.send_message(
-                MessagePayload(**payload_kwargs)
-            )
+        if generated_chunks:
+            for generated_chunk in generated_chunks:
+                payload_kwargs: dict[str, Any] = {
+                    "chat_id": state["chat_id"],
+                    "target_platform": target_platform,
+                    "text": str(generated_chunk.get("text") or ""),
+                }
+                image_path = generated_chunk.get("image_path")
+                if image_path:
+                    payload_kwargs["photo_path"] = image_path
+                await app.sender.send_message(MessagePayload(**payload_kwargs))
             if current_message_id:
                 await app.sender.delete_message(
                     state["chat_id"],
@@ -421,7 +435,7 @@ async def refresh_market_message(
                 current_message_id = None
                 await save_runtime_state(app, state)
 
-        if current_message_id and not generated_message:
+        if current_message_id and not generated_chunks:
             await app.sender.edit_message(
                 MessagePayload(
                     chat_id=state["chat_id"],

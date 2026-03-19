@@ -12,27 +12,29 @@ if TYPE_CHECKING:
 
 class RateLimitMiddleware(BaseMiddleware):
     DEFAULT_TTL_SECONDS = 1
-    TRADE_TTL_SECONDS = 2
+    TRADE_TTL_SECONDS = 1
+    LOBBY_TTL_SECONDS = 1
+    NAVIGATION_TTL_SECONDS = 0
 
     def _normalize_action(self, callback_data: str) -> tuple[str, int]:
         if callback_data.startswith("private:trade_exec:buy:"):
-            return "private:trade_exec:buy", self.TRADE_TTL_SECONDS
+            return callback_data, self.TRADE_TTL_SECONDS
         if callback_data.startswith("private:trade_exec:sell:"):
-            return "private:trade_exec:sell", self.TRADE_TTL_SECONDS
+            return callback_data, self.TRADE_TTL_SECONDS
+        if callback_data in {"begin_game", "end_game", "join_game", "leave_game"}:
+            return callback_data, self.LOBBY_TTL_SECONDS
         if callback_data.startswith("private:trade_menu:"):
-            return "private:trade_menu", self.DEFAULT_TTL_SECONDS
+            return callback_data, self.NAVIGATION_TTL_SECONDS
         if callback_data.startswith("private:company:"):
-            return "private:company", self.DEFAULT_TTL_SECONDS
+            return callback_data, self.NAVIGATION_TTL_SECONDS
         if callback_data.startswith("private:portfolio_page:"):
-            return "private:portfolio_page", self.DEFAULT_TTL_SECONDS
+            return callback_data, self.NAVIGATION_TTL_SECONDS
         if callback_data.startswith("private:history_page:"):
-            return "private:history_page", self.DEFAULT_TTL_SECONDS
+            return callback_data, self.NAVIGATION_TTL_SECONDS
         if callback_data.startswith("private:companies_page:"):
-            return "private:companies_page", self.DEFAULT_TTL_SECONDS
+            return callback_data, self.NAVIGATION_TTL_SECONDS
         if callback_data.startswith("private:"):
-            parts = callback_data.split(":")
-            if len(parts) >= 2:
-                return f"private:{parts[1]}", self.DEFAULT_TTL_SECONDS
+            return callback_data, self.NAVIGATION_TTL_SECONDS
         return callback_data, self.DEFAULT_TTL_SECONDS
 
     async def process(self, update: Update, app: App) -> StopProcessing | None:
@@ -44,6 +46,8 @@ class RateLimitMiddleware(BaseMiddleware):
             return None
 
         action_key, ttl = self._normalize_action(update.callback_query.data or "")
+        if ttl <= 0:
+            return None
         actor_key = update.actor_key or build_actor_key(
             update.source_platform, update.from_user.id
         )

@@ -75,7 +75,7 @@ def test_build_generated_message_dedupes_events_and_shows_ticks_left() -> None:
     }
 
     message = render.build_generated_message(generated)
-    assert message == "Ивент:\nобвал рынка (3 тиков осталось)"
+    assert message == "⚡ Ивент:\nобвал рынка (3 тиков осталось)"
 
 
 def test_refresh_market_message_recreates_large_message_when_generated(
@@ -390,3 +390,63 @@ def test_company_screen_keeps_buy_button_for_regular_state(monkeypatch) -> None:
     buy_button = keyboard.inline_keyboard[0][0]
     assert buy_button.text == "Купить"
     assert buy_button.callback_data == "private:trade_menu:buy:1"
+
+
+def test_trade_screen_uses_fixed_25_instead_of_max(monkeypatch) -> None:
+    monkeypatch.setattr(
+        private_ui,
+        "get_active_player_context",
+        AsyncMock(
+            return_value=(
+                SimpleNamespace(id=1),
+                SimpleNamespace(id=10, balance=1000.0),
+                SimpleNamespace(id=20),
+                {
+                    "assets": {
+                        "1": {
+                            "asset_id": 1,
+                            "name": "Alpha",
+                            "current_price": 100.0,
+                            "active_event": None,
+                        }
+                    }
+                },
+            )
+        ),
+    )
+    monkeypatch.setattr(private_ui, "generate_asset_price_chart", lambda *_: "chart")
+    monkeypatch.setattr(private_ui, "_tick_seconds", AsyncMock(return_value=10))
+
+    app = SimpleNamespace(
+        market=SimpleNamespace(
+            game_asset=SimpleNamespace(
+                get=AsyncMock(return_value=SimpleNamespace(shares_available=1000))
+            ),
+            portfolio=SimpleNamespace(
+                get_or_create=AsyncMock(return_value=SimpleNamespace(amount=40))
+            ),
+        ),
+        fsm=SimpleNamespace(
+            FSM=SimpleNamespace(PLAYING_BUY="playing_buy", PLAYING_SELL="playing_sell")
+        ),
+    )
+
+    _, keyboard_buy, _, _, _ = asyncio.run(
+        private_ui._build_trade_screen(
+            app,
+            tg_user_id=777,
+            data={"asset_id": 1, "trade_side": "buy"},
+        )
+    )
+    fixed_buy_texts = [button.text for button in keyboard_buy.inline_keyboard[0]]
+    assert fixed_buy_texts == ["1", "2", "5", "10", "25"]
+
+    _, keyboard_sell, _, _, _ = asyncio.run(
+        private_ui._build_trade_screen(
+            app,
+            tg_user_id=777,
+            data={"asset_id": 1, "trade_side": "sell"},
+        )
+    )
+    fixed_sell_texts = [button.text for button in keyboard_sell.inline_keyboard[0]]
+    assert fixed_sell_texts == ["1", "2", "5", "10", "25"]

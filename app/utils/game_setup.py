@@ -47,6 +47,9 @@ async def initialize_game_market(
         "chat_id": game.chat_id,
         "platform": str(getattr(game, "platform", "TG")).upper(),
         "tick": 0,
+        "next_tick_at": (
+            started_at + timedelta(seconds=int(settings["tick_seconds"]))
+        ).isoformat(),
         "status": "running",
         "market_view": "main",
         "market_message_id": None,

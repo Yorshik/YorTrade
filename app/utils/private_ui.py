@@ -56,6 +56,20 @@ def _format_seconds_left(ends_at: str | None) -> str:
     return f"{minutes:02d}:{seconds:02d}"
 
 
+def _seconds_until_price_update(state: dict, tick_seconds: int) -> int:
+    next_tick_at_raw = state.get("next_tick_at")
+    if next_tick_at_raw:
+        try:
+            next_tick_at = datetime.fromisoformat(str(next_tick_at_raw))
+            return max(
+                0,
+                int((next_tick_at - datetime.now(timezone.utc)).total_seconds()),
+            )
+        except ValueError:
+            pass
+    return max(0, int(tick_seconds))
+
+
 def _asset_change_percent(asset_state: dict) -> float:
     history = asset_state.get("history") or []
     if len(history) < 2:
@@ -124,7 +138,7 @@ def _build_dm_feed_lines(state: dict) -> list[str]:
     lines: list[str] = []
 
     lines.extend(
-        f"Новости: {news_item.get('text', '')}"
+        f"📰 Новости: {news_item.get('text', '')}"
         for news_item in feed.get("news", [])
         if tick <= int(news_item.get("display_until", -1))
     )
@@ -138,41 +152,43 @@ def _build_dm_feed_lines(state: dict) -> list[str]:
                 if int(event_item.get("event_ticks", 0)) > 0 and event_item.get(
                     "include_remaining", True
                 ):
-                    lines.append(f"Ивент: {event_text} (осталось тиков: {remaining})")
+                    lines.append(
+                        f"⚡ Ивент: {event_text} (осталось тиков: {remaining})"
+                    )
                 else:
-                    lines.append(f"Ивент: {event_text}")
+                    lines.append(f"⚡ Ивент: {event_text}")
             elif (
                 event_item.get("asset_name") is not None
                 and event_item.get("delta") is not None
             ):
                 lines.append(
-                    f"Ивент: {event_item.get('asset_name')} "
+                    f"⚡ Ивент: {event_item.get('asset_name')} "
                     f"{float(event_item.get('delta', 0.0)):+.2f} (осталось тиков: {remaining})"
                 )
             elif event_item.get("asset_name") is not None:
                 lines.append(
-                    f"Ивент: {event_item.get('asset_name')} (осталось тиков: {remaining})"
+                    f"⚡ Ивент: {event_item.get('asset_name')} (осталось тиков: {remaining})"
                 )
         elif tick == active_until + 1:
             ended_text = event_item.get("ended_text")
             if ended_text:
-                lines.append(f"Ивент завершён: {ended_text}")
+                lines.append(f"✅ Ивент завершён: {ended_text}")
             elif event_item.get("asset_name") is not None:
-                lines.append(f"Ивент завершён: {event_item.get('asset_name')}")
+                lines.append(f"✅ Ивент завершён: {event_item.get('asset_name')}")
 
     for insider_item in feed.get("insiders", []):
         source_tick = int(insider_item.get("source_tick", tick))
         if tick == source_tick:
             insider_text = insider_item.get("text")
             if insider_text:
-                lines.append(f"Инсайд: {insider_text}")
+                lines.append(f"🕵️ Инсайд: {insider_text}")
             else:
                 lines.append(
-                    f"Инсайд: {insider_item.get('asset_name')} "
+                    f"🕵️ Инсайд: {insider_item.get('asset_name')} "
                     f"{float(insider_item.get('forecast_percent', 0.0)):+.1f}%"
                 )
         elif tick == source_tick + 1:
-            lines.append(f"Инсайд отыгран: {insider_item.get('asset_name')}")
+            lines.append(f"✅ Инсайд отыгран: {insider_item.get('asset_name')}")
 
     return lines
 
@@ -223,10 +239,12 @@ async def _build_main_screen(
     page_assets = _main_chart_assets(app, assets, page, data)
     holdings = await _portfolio_amounts_by_asset(app, player.id)
     snapshot = await build_portfolio_snapshot(app, tg_user_id, platform=platform)
+    tick_seconds = await _tick_seconds(app, game.id)
 
     lines = [
         f'Чат: "{state.get("chat_title") or "Неизвестный чат"}" ("{state["chat_id"]}")',
-        f"Тик: {state['tick']} | Осталось времени: {_format_seconds_left(state.get('ends_at'))}",
+        f"⏱ До обновления цен: {_seconds_until_price_update(state, tick_seconds)} сек | "
+        f"Осталось времени: {_format_seconds_left(state.get('ends_at'))}",
         "",
         f"Страница компаний: {page + 1}/{total_pages}",
     ]
@@ -286,7 +304,7 @@ async def _build_main_screen(
         [InlineKeyboardButton(text="Выйти", callback_data="private:leave_confirm")]
     )
 
-    chart = generate_private_main_chart(page_assets, await _tick_seconds(app, game.id))
+    chart = generate_private_main_chart(page_assets, tick_seconds)
     new_data = dict(data)
     new_data["companies_page"] = page
     return (
@@ -395,7 +413,7 @@ async def _build_trade_screen(
             text="10", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:10"
         ),
         InlineKeyboardButton(
-            text="МАКС", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:max"
+            text="25", callback_data=f"private:trade_exec:{side}:{asset_id}:fixed:25"
         ),
     ]
 

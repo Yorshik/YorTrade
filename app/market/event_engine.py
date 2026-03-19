@@ -197,6 +197,7 @@ async def schedule_market_drivers(
                 "target_tick": target_tick,
                 "is_true": is_true,
                 "text": insider_text,
+                "image_id": "insider_info",
             }
             generated["insider"] = insider_payload
             state["last_insider_info"] = insider_payload

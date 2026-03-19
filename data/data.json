@@ -1,12 +1,12 @@
 [
-  {"id": "apple", "name": "Apple", "start_price": 150},
-  {"id": "microsoft", "name": "Microsoft", "start_price": 140},
-  {"id": "google", "name": "Google", "start_price": 130},
-  {"id": "amazon", "name": "Amazon", "start_price": 120},
-  {"id": "tesla", "name": "Tesla", "start_price": 110},
-  {"id": "nvidia", "name": "Nvidia", "start_price": 160},
-  {"id": "meta", "name": "Meta", "start_price": 100},
-  {"id": "netflix", "name": "Netflix", "start_price": 90},
-  {"id": "intel", "name": "Intel", "start_price": 80},
-  {"id": "samsung", "name": "Samsung", "start_price": 95}
+  {"id": "aerojet", "name": "AeroJet", "start_price": 120},
+  {"id": "greenfuel", "name": "GreenFuel", "start_price": 90},
+  {"id": "medicore", "name": "MediCore", "start_price": 110},
+  {"id": "foodex", "name": "FoodEx", "start_price": 80},
+  {"id": "ironforge", "name": "IronForge", "start_price": 100},
+  {"id": "neurotech", "name": "NeuroTech", "start_price": 130},
+  {"id": "oceangold", "name": "OceanGold", "start_price": 95},
+  {"id": "skyline", "name": "Skyline Realty", "start_price": 85},
+  {"id": "quantbank", "name": "QuantBank", "start_price": 140},
+  {"id": "entertainix", "name": "Entertainix", "start_price": 75}
 ]

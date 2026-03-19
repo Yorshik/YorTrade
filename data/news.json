@@ -1,31 +1,31 @@
 [
-  {"company_id": "apple", "direction": "up", "text": "Apple сообщает о рекордных продажах нового устройства"},
-  {"company_id": "apple", "direction": "down", "text": "Apple сталкивается с проблемами в производстве продукции"},
+  {"company_id": "aerojet", "direction": "up", "text": "✈️ AeroJet впервые поднимает в небо новый сверхзвуковой лайнер — континенты будто становятся ближе.", "image_id": "aerojet_supersonic"},
+  {"company_id": "aerojet", "direction": "down", "text": "🛠️ В ангарах AeroJet останавливаются десятки самолётов — инженеры проверяют системы после сбоя.", "image_id": "aerojet_inspection"},
 
-  {"company_id": "microsoft", "direction": "up", "text": "Microsoft расширяет облачные мощности и привлекает новых клиентов"},
-  {"company_id": "microsoft", "direction": "down", "text": "Сбой в сервисах Microsoft вызывает недовольство пользователей"},
+  {"company_id": "greenfuel", "direction": "up", "text": "☀️ GreenFuel запускает гигантскую солнечную станцию, которая светится как отдельный город.", "image_id": "greenfuel_solar"},
+  {"company_id": "greenfuel", "direction": "down", "text": "⚠️ Производство GreenFuel замедляется — редкие материалы внезапно исчезают с рынка.", "image_id": "greenfuel_shortage"},
 
-  {"company_id": "google", "direction": "up", "text": "Google увеличивает доходы от рекламы благодаря новому алгоритму"},
-  {"company_id": "google", "direction": "down", "text": "Регуляторы усиливают давление на бизнес Google"},
+  {"company_id": "medicore", "direction": "up", "text": "🧬 В лабораториях MediCore — эйфория: новая терапия даёт невероятные результаты.", "image_id": "medicore_breakthrough"},
+  {"company_id": "medicore", "direction": "down", "text": "📄 Решение по препарату MediCore откладывается — внутри компании растёт напряжение.", "image_id": "medicore_delay"},
 
-  {"company_id": "amazon", "direction": "up", "text": "Amazon ускоряет доставку и увеличивает число подписчиков"},
-  {"company_id": "amazon", "direction": "down", "text": "Amazon сталкивается с задержками поставок по всему миру"},
+  {"company_id": "foodex", "direction": "up", "text": "🤖 На кухнях FoodEx теперь работают роботы — клиенты снимают процесс на видео.", "image_id": "foodex_robots"},
+  {"company_id": "foodex", "direction": "down", "text": "🍽️ В FoodEx появляются жалобы на качество — проверки следуют одна за другой.", "image_id": "foodex_inspection"},
 
-  {"company_id": "tesla", "direction": "up", "text": "Tesla сообщает о росте продаж электромобилей"},
-  {"company_id": "tesla", "direction": "down", "text": "Tesla отзывает часть автомобилей из-за технических проблем"},
+  {"company_id": "ironforge", "direction": "up", "text": "🏭 Новый завод IronForge работает без остановки — металл льётся рекой.", "image_id": "ironforge_factory"},
+  {"company_id": "ironforge", "direction": "down", "text": "📉 IronForge теряет крупного клиента — производственные линии замедляются.", "image_id": "ironforge_empty"},
 
-  {"company_id": "nvidia", "direction": "up", "text": "Спрос на чипы Nvidia резко увеличивается"},
-  {"company_id": "nvidia", "direction": "down", "text": "Поставки продукции Nvidia замедляются из-за нехватки компонентов"},
+  {"company_id": "neurotech", "direction": "up", "text": "🧠 NeuroTech показывает управление техникой силой мысли — видео разлетается по сети.", "image_id": "neurotech_interface"},
+  {"company_id": "neurotech", "direction": "down", "text": "⚡ Вокруг технологий NeuroTech начинаются споры о возможных рисках.", "image_id": "neurotech_debate"},
 
-  {"company_id": "meta", "direction": "up", "text": "Meta показывает рост аудитории на своих платформах"},
-  {"company_id": "meta", "direction": "down", "text": "Meta теряет пользователей из-за конкуренции"},
+  {"company_id": "oceangold", "direction": "up", "text": "🌊 OceanGold находит редкие ресурсы глубоко под океаном — кадры выглядят нереально.", "image_id": "oceangold_mining"},
+  {"company_id": "oceangold", "direction": "down", "text": "🌪️ Протесты против OceanGold усиливаются — атмосфера накаляется.", "image_id": "oceangold_protest"},
 
-  {"company_id": "netflix", "direction": "up", "text": "Netflix привлекает новых подписчиков благодаря успешному релизу"},
-  {"company_id": "netflix", "direction": "down", "text": "Netflix фиксирует отток пользователей"},
+  {"company_id": "skyline", "direction": "up", "text": "🏙️ Skyline показывает город будущего — здания будто живые.", "image_id": "skyline_city"},
+  {"company_id": "skyline", "direction": "down", "text": "🏚️ Всё больше квартир Skyline остаются пустыми — районы затихают.", "image_id": "skyline_empty"},
 
-  {"company_id": "intel", "direction": "up", "text": "Intel успешно запускает новое поколение процессоров"},
-  {"company_id": "intel", "direction": "down", "text": "Intel теряет долю рынка из-за конкурентов"},
+  {"company_id": "quantbank", "direction": "up", "text": "📊 QuantBank запускает систему, которая находит скрытые закономерности.", "image_id": "quantbank_ai"},
+  {"company_id": "quantbank", "direction": "down", "text": "💻 Данные QuantBank обсуждаются на теневых форумах.", "image_id": "quantbank_hack"},
 
-  {"company_id": "samsung", "direction": "up", "text": "Samsung увеличивает производство полупроводников"},
-  {"company_id": "samsung", "direction": "down", "text": "Samsung сталкивается с падением спроса на продукцию"}
+  {"company_id": "entertainix", "direction": "up", "text": "🎬 Entertainix выпускает интерактивный сериал — зрители влияют на сюжет.", "image_id": "entertainix_show"},
+  {"company_id": "entertainix", "direction": "down", "text": "📉 Популярная франшиза уходит от Entertainix — фанаты обсуждают это повсюду.", "image_id": "entertainix_contract"}
 ]

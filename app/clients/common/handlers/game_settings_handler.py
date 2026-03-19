@@ -7,10 +7,8 @@ from app.clients.common.mailbox import (
 )
 from app.utils.lobby import (
     adjust_setting,
-    build_lobby_text,
     get_setting_label,
     normalize_game_settings,
-    render_lobby_keyboard,
     render_setting_input_keyboard,
     render_setting_input_prompt,
     render_settings_keyboard,
@@ -66,6 +64,11 @@ class GameSettingsHandler(BaseHandler):
             source_platform, update.from_user.id
         )
         is_host = bool(actor_user and game.host_id == actor_user.id)
+        fsm_state = await self.app.fsm.get_state(
+            update.from_user.id, platform=source_platform
+        )
+        fsm_data = dict(fsm_state[1]) if fsm_state else {}
+        settings_message_id = fsm_data.get("settings_message_id")
 
         if not is_host:
             if update.type == MessageType.CALLBACK_QUERY:
@@ -144,22 +147,37 @@ class GameSettingsHandler(BaseHandler):
                 self.app.fsm.FSM.GAME_SETTINGS,
                 {
                     "game_id": game.id,
-                    "settings_message_id": update.callback_query.message.message_id,
+                    "settings_message_id": settings_message_id,
                 },
                 platform=source_platform,
             )
+            if (
+                settings_message_id
+                and int(settings_message_id) != int(update.callback_query.message.message_id)
+            ):
+                await self.app.sender.delete_message(
+                    update.chat_id,
+                    int(settings_message_id),
+                    target_platform=source_platform,
+                )
             await self.app.sender.answer_callback_query(
                 callback_query_id=update.callback_query.id,
                 text="Открываю настройки.",
             )
             return MessagePayload(
                 chat_id=update.chat_id,
-                action=PayloadAction.EDIT,
-                message_id=update.callback_query.message.message_id,
+                target_platform=source_platform,
                 text=render_settings_text(settings),
                 keyboard=render_settings_keyboard(
                     settings, use_client=(update.source_platform or "TG")
                 ),
+                fsm_update={
+                    "user_id": update.from_user.id,
+                    "state": self.app.fsm.FSM.GAME_SETTINGS,
+                    "platform": source_platform,
+                    "data": {"game_id": game.id},
+                    "message_field": "settings_message_id",
+                },
             )
         else:
             await self.app.fsm.set_state(
@@ -172,24 +190,18 @@ class GameSettingsHandler(BaseHandler):
                 callback_query_id=update.callback_query.id,
                 text="Возвращаю в лобби.",
             )
-            chat_title = None
-            if (
-                update.callback_query
-                and update.callback_query.message
-                and update.callback_query.message.chat.title
-            ):
-                chat_title = str(update.callback_query.message.chat.title)
-            return MessagePayload(
-                chat_id=update.chat_id,
-                action=PayloadAction.EDIT,
-                message_id=update.callback_query.message.message_id,
-                text=await build_lobby_text(
-                    self.app,
-                    game,
-                    chat_title=chat_title,
-                ),
-                keyboard=render_lobby_keyboard(),
+            message_to_delete = (
+                update.callback_query.message.message_id
+                if update.callback_query and update.callback_query.message
+                else settings_message_id
             )
+            if message_to_delete:
+                await self.app.sender.delete_message(
+                    update.chat_id,
+                    int(message_to_delete),
+                    target_platform=source_platform,
+                )
+            return None
 
         return MessagePayload(
             chat_id=update.chat_id,

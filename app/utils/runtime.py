@@ -13,6 +13,7 @@ def build_initial_runtime_state(
         "platform": str(platform).upper(),
         "chat_title": None,
         "tick": 0,
+        "next_tick_at": None,
         "status": "running",
         "market_view": "main",
         "market_message_id": None,
@@ -45,6 +46,9 @@ async def init_runtime_state(
             changed = True
         if "global_event" not in state:
             state["global_event"] = None
+            changed = True
+        if "next_tick_at" not in state:
+            state["next_tick_at"] = None
             changed = True
         if changed:
             await save_runtime_state(app, state)

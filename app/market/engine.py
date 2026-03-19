@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import monotonic
 
 from app.clients.common.mailbox import MessagePayload
@@ -154,6 +154,10 @@ class GameEngine:
                     await self._finish_game(game_id, state)
                     return
 
+                tick_interval = self._tick_intervals.get(game_id, self.tick_interval)
+                state["next_tick_at"] = (
+                    datetime.now(timezone.utc) + timedelta(seconds=tick_interval)
+                ).isoformat()
                 state["tick"] += 1
                 logger.info(
                     "Game tick started for game_id=%s tick=%s", game_id, state["tick"]
@@ -197,7 +201,6 @@ class GameEngine:
                     state["tick"],
                     elapsed,
                 )
-                tick_interval = self._tick_intervals.get(game_id, self.tick_interval)
                 await asyncio.sleep(max(0.0, tick_interval - elapsed))
         except asyncio.CancelledError:
             logger.info("Game loop stopped for game_id=%s", game_id)
