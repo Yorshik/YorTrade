@@ -1,44 +1,61 @@
 import json
-from typing import Optional
+import logging
+from typing import Any
+
 import redis.asyncio as redis
+
+logger = logging.getLogger(__name__)
 
 
 class RedisAccessor:
     def __init__(self, dsn: str):
         self.dsn = dsn
-        self.redis: Optional[redis.Redis] = None
+        self.redis: redis.Redis | None = None
 
     async def connect(self):
         try:
             self.redis = redis.from_url(self.dsn, decode_responses=True)
             await self.redis.ping()
-            print("Успешное подключение к Redis")
+            logger.info("Успешное подключение к Redis")
         except Exception as e:
-            print(f"Ошибка подключения к Redis: {e}")
+            logger.error(f"Ошибка подключения к Redis: {e}", exc_info=True)
             raise
 
     async def disconnect(self):
         if self.redis:
             await self.redis.close()
-            print("Соединение с Redis закрыто")
+            logger.info("Соединение с Redis закрыто")
 
-    async def set_message_info(self, chat_id: int, message_id: int):
-        """
-        Сохраняет информацию о последнем отправленном сообщении для данного чата.
-        """
+    async def get(self, key: str) -> str | None:
+        if not self.redis:
+            return None
+        return await self.redis.get(key)
+
+    async def set(self, key: str, value: Any, expires_in: int | None = None):
         if not self.redis:
             return
+        await self.redis.set(key, value, ex=expires_in)
 
+    async def set_if_absent(
+        self, key: str, value: Any, expires_in: int | None = None
+    ) -> bool:
+        if not self.redis:
+            return False
+        return bool(await self.redis.set(key, value, ex=expires_in, nx=True))
+
+    async def delete(self, key: str):
+        if not self.redis:
+            return
+        await self.redis.delete(key)
+
+    async def set_message_info(self, chat_id: int, message_id: int):
         key = f"last_message:{chat_id}"
         value = json.dumps({"chat_id": chat_id, "message_id": message_id})
-        await self.redis.set(key, value, ex=60 * 60 * 24 * 7)
+        await self.set(key, value, expires_in=60 * 60 * 24 * 7)
 
     async def get_message_info(self, chat_id: int):
-        if not self.redis:
-            return -1
-
         key = f"last_message:{chat_id}"
-        result = await self.redis.get(key)
+        result = await self.get(key)
         if not result:
             return -1
         return json.loads(result)["message_id"]

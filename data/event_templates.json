@@ -1,0 +1,267 @@
+[
+  {
+    "id": "event_01",
+    "title": "⛽ Мир на грани топливного кризиса",
+    "description": "Поставки нефти обрываются сразу в нескольких регионах — очереди растут, перевозки замедляются, напряжение чувствуется повсюду.",
+    "effects": [
+      {"company_id": "greenfuel", "direction": "up", "strength": 0.9},
+      {"company_id": "aerojet", "direction": "down", "strength": 0.7},
+      {"company_id": "foodex", "direction": "down", "strength": 0.4}
+    ],
+    "duration_ticks": 6,
+    "image_id": "fuel_crisis"
+  },
+  {
+    "id": "event_02",
+    "title": "🧬 Медицинский прорыв",
+    "description": "Новая терапия меняет представление о лечении — пациенты делятся историями, которые ещё недавно казались невозможными.",
+    "effects": [
+      {"company_id": "medicore", "direction": "up", "strength": 1.0},
+      {"company_id": "quantbank", "direction": "up", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "medical_breakthrough"
+  },
+  {
+    "id": "event_03",
+    "title": "🏚️ Пустеющие города",
+    "description": "Рынок недвижимости охлаждается — здания остаются без света, районы теряют привычное движение.",
+    "effects": [
+      {"company_id": "skyline", "direction": "down", "strength": 1.0},
+      {"company_id": "quantbank", "direction": "down", "strength": 0.6}
+    ],
+    "duration_ticks": 6,
+    "image_id": "real_estate_decline"
+  },
+  {
+    "id": "event_04",
+    "title": "💰 Новая золотая лихорадка",
+    "description": "Новости о находке распространяются мгновенно — техника и люди устремляются к новым месторождениям.",
+    "effects": [
+      {"company_id": "oceangold", "direction": "up", "strength": 0.9}
+    ],
+    "duration_ticks": 5,
+    "image_id": "gold_rush"
+  },
+  {
+    "id": "event_05",
+    "title": "🤖 Заводы без людей",
+    "description": "Производство переходит в автономный режим — машины работают без остановки.",
+    "effects": [
+      {"company_id": "ironforge", "direction": "up", "strength": 0.8},
+      {"company_id": "foodex", "direction": "up", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "robot_factories"
+  },
+  {
+    "id": "event_06",
+    "title": "🧠 Интерфейсы в голове",
+    "description": "Нейротехнологии становятся частью повседневности — границы между человеком и машиной стираются.",
+    "effects": [
+      {"company_id": "neurotech", "direction": "up", "strength": 1.0}
+    ],
+    "duration_ticks": 6,
+    "image_id": "neural_implants"
+  },
+  {
+    "id": "event_07",
+    "title": "✈️ Небо пустеет",
+    "description": "Аэропорты затихают — рейсы исчезают с табло один за другим.",
+    "effects": [
+      {"company_id": "aerojet", "direction": "down", "strength": 1.0}
+    ],
+    "duration_ticks": 5,
+    "image_id": "empty_airports"
+  },
+  {
+    "id": "event_08",
+    "title": "💥 Финансовая тревога",
+    "description": "Люди начинают обсуждать нестабильность — напряжение растёт быстрее новостей.",
+    "effects": [
+      {"company_id": "quantbank", "direction": "down", "strength": 1.0},
+      {"company_id": "oceangold", "direction": "up", "strength": 0.5}
+    ],
+    "duration_ticks": 6,
+    "image_id": "financial_panic"
+  },
+
+  {
+    "id": "event_09",
+    "title": "🌪️ Шторм в океане",
+    "description": "Мощный шторм останавливает добычу и разрушает инфраструктуру в море.",
+    "effects": [
+      {"company_id": "oceangold", "direction": "down", "strength": 0.8}
+    ],
+    "duration_ticks": 4,
+    "image_id": "ocean_storm"
+  },
+  {
+    "id": "event_10",
+    "title": "🔥 Волна жары",
+    "description": "Температуры бьют рекорды — города и системы начинают перегреваться.",
+    "effects": [
+      {"company_id": "greenfuel", "direction": "up", "strength": 0.5},
+      {"company_id": "foodex", "direction": "down", "strength": 0.3}
+    ],
+    "duration_ticks": 5,
+    "image_id": "heatwave"
+  },
+  {
+    "id": "event_11",
+    "title": "📡 Глобальный сбой связи",
+    "description": "Сети начинают работать нестабильно — информация доходит с задержками.",
+    "effects": [
+      {"company_id": "quantbank", "direction": "down", "strength": 0.6},
+      {"company_id": "neurotech", "direction": "down", "strength": 0.4}
+    ],
+    "duration_ticks": 4,
+    "image_id": "network_failure"
+  },
+  {
+    "id": "event_12",
+    "title": "🚧 Замедление поставок",
+    "description": "Грузовые маршруты перегружены — цепочки поставок растягиваются.",
+    "effects": [
+      {"company_id": "foodex", "direction": "down", "strength": 0.5},
+      {"company_id": "ironforge", "direction": "down", "strength": 0.4}
+    ],
+    "duration_ticks": 5,
+    "image_id": "supply_delay"
+  },
+  {
+    "id": "event_13",
+    "title": "🎮 Всплеск интереса к развлечениям",
+    "description": "Люди массово уходят в цифровой отдых — экраны светятся по ночам.",
+    "effects": [
+      {"company_id": "entertainix", "direction": "up", "strength": 0.8}
+    ],
+    "duration_ticks": 4,
+    "image_id": "entertainment_boom"
+  },
+  {
+    "id": "event_14",
+    "title": "⚡ Энергетический скачок",
+    "description": "Потребление энергии резко возрастает — сети работают на пределе.",
+    "effects": [
+      {"company_id": "greenfuel", "direction": "up", "strength": 0.7}
+    ],
+    "duration_ticks": 5,
+    "image_id": "energy_spike"
+  },
+  {
+    "id": "event_15",
+    "title": "🚨 Утечки данных обсуждаются повсюду",
+    "description": "Люди начинают сомневаться в безопасности своих данных.",
+    "effects": [
+      {"company_id": "quantbank", "direction": "down", "strength": 0.7}
+    ],
+    "duration_ticks": 4,
+    "image_id": "data_leak"
+  },
+
+  {
+    "id": "event_16",
+    "title": "🌆 Города будущего",
+    "description": "Умные технологии начинают менять облик мегаполисов.",
+    "effects": [
+      {"company_id": "skyline", "direction": "up", "strength": 0.8}
+    ],
+    "duration_ticks": 5,
+    "image_id": "smart_city"
+  },
+  {
+    "id": "event_17",
+    "title": "🧪 Этические споры",
+    "description": "Технологии вызывают бурные обсуждения в обществе.",
+    "effects": [
+      {"company_id": "neurotech", "direction": "down", "strength": 0.5}
+    ],
+    "duration_ticks": 4,
+    "image_id": "ethics_debate"
+  },
+  {
+    "id": "event_18",
+    "title": "🌊 Рост уровня воды",
+    "description": "Прибрежные районы сталкиваются с новыми угрозами.",
+    "effects": [
+      {"company_id": "skyline", "direction": "down", "strength": 0.6}
+    ],
+    "duration_ticks": 5,
+    "image_id": "flooding"
+  },
+  {
+    "id": "event_19",
+    "title": "🚀 Индустриальный рост",
+    "description": "Производство ускоряется, города наполняются шумом заводов.",
+    "effects": [
+      {"company_id": "ironforge", "direction": "up", "strength": 0.7}
+    ],
+    "duration_ticks": 5,
+    "image_id": "industrial_growth"
+  },
+  {
+    "id": "event_20",
+    "title": "🍽️ Изменение привычек",
+    "description": "Люди начинают по-другому относиться к еде и потреблению.",
+    "effects": [
+      {"company_id": "foodex", "direction": "up", "strength": 0.4}
+    ],
+    "duration_ticks": 4,
+    "image_id": "food_trends"
+  },
+
+  {
+    "id": "event_21",
+    "title": "🌐 Массовая цифровизация",
+    "description": "Всё больше процессов уходит в онлайн.",
+    "effects": [
+      {"company_id": "quantbank", "direction": "up", "strength": 0.5},
+      {"company_id": "entertainix", "direction": "up", "strength": 0.4}
+    ],
+    "duration_ticks": 5,
+    "image_id": "digital_shift"
+  },
+  {
+    "id": "event_22",
+    "title": "🚫 Ограничения на поездки",
+    "description": "Передвижения между странами становятся сложнее.",
+    "effects": [
+      {"company_id": "aerojet", "direction": "down", "strength": 0.8}
+    ],
+    "duration_ticks": 5,
+    "image_id": "travel_restrictions"
+  },
+  {
+    "id": "event_23",
+    "title": "🪙 Рост интереса к ресурсам",
+    "description": "Редкие материалы становятся предметом обсуждения.",
+    "effects": [
+      {"company_id": "oceangold", "direction": "up", "strength": 0.6}
+    ],
+    "duration_ticks": 5,
+    "image_id": "resource_interest"
+  },
+  {
+    "id": "event_24",
+    "title": "🎥 Новая волна контента",
+    "description": "Контент становится более интерактивным и захватывающим.",
+    "effects": [
+      {"company_id": "entertainix", "direction": "up", "strength": 0.7}
+    ],
+    "duration_ticks": 4,
+    "image_id": "content_wave"
+  },
+  {
+    "id": "event_25",
+    "title": "🌍 Общая нестабильность",
+    "description": "Мир становится менее предсказуемым — ощущение тревоги висит в воздухе.",
+    "effects": [
+      {"company_id": "aerojet", "direction": "down", "strength": 0.4},
+      {"company_id": "quantbank", "direction": "down", "strength": 0.4},
+      {"company_id": "greenfuel", "direction": "down", "strength": 0.4}
+    ],
+    "duration_ticks": 6,
+    "image_id": "global_uncertainty"
+  }
+]
